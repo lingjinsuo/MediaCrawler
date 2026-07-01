@@ -25,10 +25,10 @@ PLATFORM = "xhs"  # Platform, xhs | dy | ks | bili | wb | tieba | zhihu
 XHS_INTERNATIONAL = False
 
 KEYWORDS = "编程副业,编程兼职"  # Keyword search configuration, separated by English commas
-LOGIN_TYPE = "qrcode"  # qrcode or phone or cookie
-COOKIES = ""
+LOGIN_TYPE = "cookie"  # qrcode or phone or cookie
+COOKIES = "abRequestId=9186f2b0-43e8-58b3-8710-2a0ff5726d8d; ets=1782888641856; xsecappid=xhs-pc-web; a1=19f1c71b596nt1jxgmy2ojqkkiog60yxabvt22i9e30000445696; webId=bc9ef63a7269b39f1f791124772793be; x-rednote-datactry=CN; x-rednote-holderctry=CN; gid=yjiyS0Wd4q02yjiySWyD2DJ3jKI9yVCk6vJlhjdVATT3l9q8kK8vCJ888442KjK8dD2YqJqf; webBuild=6.26.3; acw_tc=0a8f06cf17828923357012999ea4808b9a2b6e042c8c2ecf4cb66cd3cce7a9; web_session=040069b890313355b854dd8371384b54c7f303; id_token=VjEAABKkQYbYCqp0TaR/Q8ScvHrtzg/H86xDGSPWHSAnLV3LDlCCVvRH4SJovdjeefn/azcSLkkODEkyjH+7f9o052SbTgj2dMQ2a7wAdsYQbrUFktq9uBe4qX919WVz65jflUET; unread={%22ub%22:%226a3209d000000000070274cc%22%2C%22ue%22:%226a224fe0000000002202dfe0%22%2C%22uc%22:38}; websectiga=59d3ef1e60c4aa37a7df3c23467bd46d7f1da0b1918cf335ee7f2e9e52ac04cf; sec_poison_id=ab9695b4-f439-4ce9-8f22-cabc643a8599; loadts=1782894104777"
 CRAWLER_TYPE = (
-    "search"  # Crawling type, search (keyword search) | detail (post details) | creator (creator homepage data)
+    "detail"  # Crawling type, search (keyword search) | detail (post details) | creator (creator homepage data)
 )
 # Whether to enable IP proxy
 ENABLE_IP_PROXY = False
@@ -73,7 +73,7 @@ CUSTOM_BROWSER_PATH = ""
 CDP_HEADLESS = False
 
 # 浏览器启动超时时间（秒）
-BROWSER_LAUNCH_TIMEOUT = 60
+BROWSER_LAUNCH_TIMEOUT = 10
 
 # 是否连接用户已打开的浏览器，而不是启动新的浏览器
 # 开启后，程序会连接一个已经启用了远程调试的浏览器
@@ -90,7 +90,7 @@ AUTO_CLOSE_BROWSER = True
 SAVE_DATA_OPTION = "jsonl"  # csv or db or json or jsonl or sqlite or excel or postgres
 
 # Data saving path, if not specified by default, it will be saved to the data folder.
-SAVE_DATA_PATH = ""
+SAVE_DATA_PATH = "/Users/lingjinsuo/D"
 
 # Browser file configuration cached by the user's browser
 USER_DATA_DIR = "%s_user_data_dir"  # %s will be replaced by platform name
@@ -99,7 +99,7 @@ USER_DATA_DIR = "%s_user_data_dir"  # %s will be replaced by platform name
 START_PAGE = 1
 
 # Control the number of crawled videos/posts
-CRAWLER_MAX_NOTES_COUNT = 15
+CRAWLER_MAX_NOTES_COUNT = 5
 
 # Controlling the number of concurrent crawlers
 MAX_CONCURRENCY_NUM = 1
@@ -138,7 +138,7 @@ CRAWLER_MAX_SLEEP_SEC = 2
 
 # 是否禁用 SSL 证书验证。仅在使用企业代理、Burp Suite、mitmproxy 等会注入自签名证书的中间人代理时设为 True。
 # 警告：禁用 SSL 验证将使所有流量暴露于中间人攻击风险，请勿在生产环境中开启。
-DISABLE_SSL_VERIFY = False
+DISABLE_SSL_VERIFY = True
 
 from .bilibili_config import *
 from .xhs_config import *
