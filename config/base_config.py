@@ -26,7 +26,7 @@ XHS_INTERNATIONAL = False
 
 KEYWORDS = "编程副业,编程兼职"  # Keyword search configuration, separated by English commas
 LOGIN_TYPE = "cookie"  # qrcode or phone or cookie
-COOKIES = "abRequestId=9186f2b0-43e8-58b3-8710-2a0ff5726d8d; ets=1782888641856; xsecappid=xhs-pc-web; a1=19f1c71b596nt1jxgmy2ojqkkiog60yxabvt22i9e30000445696; webId=bc9ef63a7269b39f1f791124772793be; x-rednote-datactry=CN; x-rednote-holderctry=CN; gid=yjiyS0Wd4q02yjiySWyD2DJ3jKI9yVCk6vJlhjdVATT3l9q8kK8vCJ888442KjK8dD2YqJqf; webBuild=6.26.3; acw_tc=0a8f06cf17828923357012999ea4808b9a2b6e042c8c2ecf4cb66cd3cce7a9; web_session=040069b890313355b854dd8371384b54c7f303; id_token=VjEAABKkQYbYCqp0TaR/Q8ScvHrtzg/H86xDGSPWHSAnLV3LDlCCVvRH4SJovdjeefn/azcSLkkODEkyjH+7f9o052SbTgj2dMQ2a7wAdsYQbrUFktq9uBe4qX919WVz65jflUET; unread={%22ub%22:%226a3209d000000000070274cc%22%2C%22ue%22:%226a224fe0000000002202dfe0%22%2C%22uc%22:38}; websectiga=59d3ef1e60c4aa37a7df3c23467bd46d7f1da0b1918cf335ee7f2e9e52ac04cf; sec_poison_id=ab9695b4-f439-4ce9-8f22-cabc643a8599; loadts=1782894104777"
+COOKIES = "abRequestId=9186f2b0-43e8-58b3-8710-2a0ff5726d8d; ets=1782888641856; xsecappid=xhs-pc-web; a1=19f1c71b596nt1jxgmy2ojqkkiog60yxabvt22i9e30000445696; webId=bc9ef63a7269b39f1f791124772793be; x-rednote-datactry=CN; x-rednote-holderctry=CN; gid=yjiyS0Wd4q02yjiySWyD2DJ3jKI9yVCk6vJlhjdVATT3l9q8kK8vCJ888442KjK8dD2YqJqf; webBuild=6.26.3; web_session=040069b890313355b854dd8371384b54c7f303; id_token=VjEAABKkQYbYCqp0TaR/Q8ScvHrtzg/H86xDGSPWHSAnLV3LDlCCVvRH4SJovdjeefn/azcSLkkODEkyjH+7f9o052SbTgj2dMQ2a7wAdsYQbrUFktq9uBe4qX919WVz65jflUET; acw_tc=0a0bb39017829140622531855ebcd070df76b1ec88db82bcfff252640b7739; websectiga=7750c37de43b7be9de8ed9ff8ea0e576519e8cd2157322eb972ecb429a7735d4; sec_poison_id=3e0a439d-55e5-4534-8f1b-fe11709f48fb; loadts=1782915034258; unread={%22ub%22:%226a3b744400000000220155b4%22%2C%22ue%22:%226a266412000000000800149b%22%2C%22uc%22:27}"
 CRAWLER_TYPE = (
     "detail"  # Crawling type, search (keyword search) | detail (post details) | creator (creator homepage data)
 )
@@ -87,7 +87,7 @@ CDP_CONNECT_EXISTING = True
 AUTO_CLOSE_BROWSER = True
 
 # Data saving type option configuration, supports: csv, db, json, jsonl, sqlite, excel, postgres. It is best to save to DB, with deduplication function.
-SAVE_DATA_OPTION = "jsonl"  # csv or db or json or jsonl or sqlite or excel or postgres
+SAVE_DATA_OPTION = "db"  # csv or db or json or jsonl or sqlite or excel or postgres
 
 # Data saving path, if not specified by default, it will be saved to the data folder.
 SAVE_DATA_PATH = "/Users/lingjinsuo/D"
