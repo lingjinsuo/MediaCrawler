@@ -113,7 +113,7 @@ ENABLE_GET_COMMENTS = True
 
 # Control the number of crawled first-level comments (single video/post)
 # 表示每个帖子最多爬取 多少个 条一级评论
-CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES = 15
+CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES = 100
 
 # Whether to enable the mode of crawling second-level comments. By default, crawling of second-level comments is not enabled.
 # If the old version of the project uses db, you need to refer to schema/tables.sql line 287 to add table fields.
