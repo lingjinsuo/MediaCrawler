@@ -197,4 +197,5 @@ if os.path.exists(WEBUI_DIR):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    # Configure uvicorn logging to only show warnings and errors
+    uvicorn.run(app, host="0.0.0.0", port=8080, log_level="warning")

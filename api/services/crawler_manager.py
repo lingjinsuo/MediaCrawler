@@ -20,6 +20,7 @@ import asyncio
 import subprocess
 import signal
 import os
+import re
 from typing import Optional, List
 from datetime import datetime
 from pathlib import Path
@@ -43,6 +44,9 @@ class CrawlerManager:
         self._project_root = Path(__file__).parent.parent.parent
         # Log queue - for pushing to WebSocket
         self._log_queue: Optional[asyncio.Queue] = None
+        # Progress tracking
+        self._total_items: int = 0
+        self._current_index: int = 0
 
     @property
     def logs(self) -> List[LogEntry]:
@@ -65,8 +69,8 @@ class CrawlerManager:
         )
         self._logs.append(entry)
         # Keep last 5000 logs
-        if len(self._logs) > 5000:
-            self._logs = self._logs[-5000:]
+        if len(self._logs) > 50000:
+            self._logs = self._logs[-50000:]
         return entry
 
     async def _push_log(self, entry: LogEntry):
@@ -89,6 +93,84 @@ class CrawlerManager:
         elif "DEBUG" in line_upper:
             return "debug"
         return "info"
+
+    def _is_comment_data_log(self, line: str) -> bool:
+        """Check if line is a comment data log (should be kept as-is)"""
+        # Comment data patterns - these contain actual comment content
+        comment_patterns = [
+            r"\[store\.\w+\.update_\w+_comment\]",  # store.xxx.update_xxx_comment
+            r"\[store\.\w+\.batch_update_\w+_comments\]",  # store.xxx.batch_update_xxx_comments
+            r"comment_id:",  # Contains comment_id field
+            r"comment.*content.*:",  # Comment content field
+            r"评论内容",  # Chinese for "comment content"
+        ]
+        for pattern in comment_patterns:
+            if re.search(pattern, line, re.IGNORECASE):
+                return True
+        return False
+
+    def _simplify_progress_log(self, line: str) -> str:
+        """Simplify progress log to show only index, ID and title"""
+        # Pattern for batch get comments - set total items
+        match = re.search(r"\[(\w+)\.batch_get_\w+_comments\] Begin batch get note comments, note list: \[([^\]]+)\]", line)
+        if match:
+            platform = match.group(1)
+            note_list = match.group(2)
+            note_ids = [n.strip().strip("'\"") for n in note_list.split(",")]
+            self._total_items = len(note_ids)
+            self._current_index = 0
+            return f"[{platform}] 开始处理 {self._total_items} 个帖子..."
+
+        # Pattern to match get_comments log
+        match = re.search(r"\[(\w+)\.get_comments\] Begin get .*? comments? (\S+)", line, re.IGNORECASE)
+        if match:
+            platform = match.group(1)
+            note_id = match.group(2)
+            self._current_index += 1
+            return f"[{platform}] 第 {self._current_index}/{self._total_items} 个帖子 | ID: {note_id}"
+
+        # Pattern for get note detail - extract title
+        match = re.search(r"\[(\w+)\.get_note_detail.*?\] Begin get note detail, note_id: (\S+)", line)
+        if match:
+            platform = match.group(1)
+            note_id = match.group(2)
+            return f"[{platform}] 第 {self._current_index}/{self._total_items} 个帖子 | ID: {note_id}"
+
+        # Pattern for store update with title - extract and store title
+        match = re.search(r"\[store\.(\w+)\.update_\w+\] .*? id:(\S+), title:(.+?)(?:\n|$)", line, re.IGNORECASE)
+        if match:
+            store_platform = match.group(1)
+            note_id = match.group(2)
+            title = match.group(3).strip()
+            # Truncate title to 30 chars
+            if len(title) > 30:
+                title = title[:30] + "..."
+            return f"[{store_platform}] 第 {self._current_index}/{self._total_items} 个帖子 | ID: {note_id} | 标题: {title}"
+
+        # Pattern for search page logs
+        match = re.search(r"\[(\w+)\.search\] search \w+ keyword: .+?, page: (\d+)", line)
+        if match:
+            platform = match.group(1)
+            page = match.group(2)
+            return f"[{platform}] 搜索第 {page} 页..."
+
+        # Keep other important logs as-is
+        important_patterns = [
+            r"Begin",
+            r"finished|completed",
+            r"Crawler (started|completed|stopped)",
+            r"Login",
+            r"Browser",
+            r"title:",
+        ]
+        for pattern in important_patterns:
+            if re.search(pattern, line, re.IGNORECASE):
+                # Truncate long lines but keep important info
+                if len(line) > 200:
+                    return line[:200]
+                return line
+
+        return None  # None means skip this log
 
     async def start(self, config: CrawlerStartRequest) -> bool:
         """Start crawler process"""
@@ -251,9 +333,27 @@ class CrawlerManager:
                 if line:
                     line = line.strip()
                     if line:
-                        level = self._parse_log_level(line)
-                        entry = self._create_log_entry(line, level)
-                        await self._push_log(entry)
+                        # Always print full log to console
+                        print(line)
+
+                        # Determine display message for WebUI
+                        display_message = None
+
+                        # Check if it's a comment data log - keep as-is
+                        if self._is_comment_data_log(line):
+                            display_message = line
+                        else:
+                            # Try to simplify progress log
+                            simplified = self._simplify_progress_log(line)
+                            if simplified:
+                                display_message = simplified
+                            # else: skip this log (don't show in WebUI)
+
+                        # Create and push log entry if there's a display message
+                        if display_message:
+                            level = self._parse_log_level(line)
+                            entry = self._create_log_entry(display_message, level)
+                            await self._push_log(entry)
 
             # Read remaining output
             if self.process and self.process.stdout:
@@ -263,9 +363,20 @@ class CrawlerManager:
                 if remaining:
                     for line in remaining.strip().split('\n'):
                         if line.strip():
-                            level = self._parse_log_level(line)
-                            entry = self._create_log_entry(line.strip(), level)
-                            await self._push_log(entry)
+                            print(line)
+
+                            display_message = None
+                            if self._is_comment_data_log(line):
+                                display_message = line
+                            else:
+                                simplified = self._simplify_progress_log(line)
+                                if simplified:
+                                    display_message = simplified
+
+                            if display_message:
+                                level = self._parse_log_level(line)
+                                entry = self._create_log_entry(display_message, level)
+                                await self._push_log(entry)
 
             # Process ended
             if self.status == "running":
