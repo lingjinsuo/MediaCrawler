@@ -24,6 +24,7 @@ import urllib.parse
 from typing import TYPE_CHECKING, Any, Callable, Dict, Union, Optional
 
 import httpx
+import config
 from playwright.async_api import BrowserContext
 
 from base.base_crawler import AbstractApiClient
@@ -333,15 +334,33 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
         posts_has_more = 1
         max_cursor = ""
         result = []
+        max_notes_count = config.CRAWLER_MAX_NOTES_COUNT
+        
         while posts_has_more == 1:
+            # Calculate how many posts we still need to reach the limit
+            remaining_needed = max(0, max_notes_count - len(result)) if max_notes_count > 0 else float('inf')
+            
             aweme_post_res = await self.get_user_aweme_posts(sec_user_id, max_cursor)
             posts_has_more = aweme_post_res.get("has_more", 0)
             max_cursor = aweme_post_res.get("max_cursor")
             aweme_list = aweme_post_res.get("aweme_list") if aweme_post_res.get("aweme_list") else []
             utils.logger.info(f"[DouYinClient.get_all_user_aweme_posts] get sec_user_id:{sec_user_id} video len : {len(aweme_list)}")
+            
+            # Only process up to the remaining needed count for callback
             if callback:
+                if max_notes_count > 0 and len(aweme_list) > remaining_needed:
+                    # Truncate aweme_list to only include what we need
+                    aweme_list = aweme_list[:remaining_needed]
+                    utils.logger.info(f"[DouYinClient.get_all_user_aweme_posts] Truncated to {len(aweme_list)} videos for callback")
                 await callback(aweme_list)
+            
             result.extend(aweme_list)
+
+            # Check if we've reached the max notes count limit
+            if max_notes_count > 0 and len(result) >= max_notes_count:
+                result = result[:max_notes_count]
+                utils.logger.info(f"[DouYinClient.get_all_user_aweme_posts] Reached max notes limit {max_notes_count}, stopping")
+                break
         return result
 
     async def get_aweme_media(self, url: str) -> Union[bytes, None]:

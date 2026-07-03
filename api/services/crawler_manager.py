@@ -121,11 +121,25 @@ class CrawlerManager:
             self._current_index = 0
             return f"[{platform}] 开始处理 {self._total_items} 个帖子..."
 
-        # Pattern to match get_comments log
-        match = re.search(r"\[(\w+)\.get_comments\] Begin get .*? comments? (\S+)", line, re.IGNORECASE)
+        # Pattern for get all user aweme posts - set total items from video count
+        match = re.search(r"\[DouYinClient\.get_all_user_aweme_posts\] .*? video len : (\d+)", line)
+        if match:
+            video_count = int(match.group(1))
+            self._total_items = video_count
+            self._current_index = 0
+            return f"[douyin] 开始处理 {self._total_items} 个帖子..."
+
+        # Pattern to match get_comments log - handles both "Begin get" and DouYin format
+        # DouYin format: [DouYinCrawler.get_comments] aweme_id: xxx comments have all been obtained
+        match = re.search(r"\[(\w+)\.get_comments\](?: Begin get .*? comments?| aweme_id: (\S+))", line, re.IGNORECASE)
         if match:
             platform = match.group(1)
-            note_id = match.group(2)
+            note_id = match.group(2) if match.group(2) else match.group(1)
+            # For DouYin, extract aweme_id from line
+            if match.group(2) is None:
+                note_id_match = re.search(r"aweme_id[:\s]+(\S+)", line)
+                if note_id_match:
+                    note_id = note_id_match.group(1)
             self._current_index += 1
             return f"[{platform}] 第 {self._current_index}/{self._total_items} 个帖子 | ID: {note_id}"
 
@@ -137,7 +151,8 @@ class CrawlerManager:
             return f"[{platform}] 第 {self._current_index}/{self._total_items} 个帖子 | ID: {note_id}"
 
         # Pattern for store update with title - extract and store title
-        match = re.search(r"\[store\.(\w+)\.update_\w+\] .*? id:(\S+), title:(.+?)(?:\n|$)", line, re.IGNORECASE)
+        # Only capture title on the same line, not multi-line content
+        match = re.search(r"\[store\.(\w+)\.update_\w+\] .*? id:(\S+), title:([^\n#]+)", line, re.IGNORECASE)
         if match:
             store_platform = match.group(1)
             note_id = match.group(2)
@@ -145,6 +160,8 @@ class CrawlerManager:
             # Truncate title to 30 chars
             if len(title) > 30:
                 title = title[:30] + "..."
+            # Increment current index for progress tracking
+            self._current_index += 1
             return f"[{store_platform}] 第 {self._current_index}/{self._total_items} 个帖子 | ID: {note_id} | 标题: {title}"
 
         # Pattern for search page logs

@@ -97,7 +97,11 @@ class DouyinDbStoreImplement(AbstractStore):
         Args:
             content_item: content item dict
         """
-        aweme_id = int(content_item.get("aweme_id"))
+        aweme_id_raw = content_item.get("aweme_id")
+        if aweme_id_raw is None:
+            utils.logger.warning("[DouyinDbStoreImplement.store_content] Skipping content with None aweme_id")
+            return
+        aweme_id = int(aweme_id_raw)
         async with get_session() as session:
             result = await session.execute(select(DouyinAweme).where(DouyinAweme.aweme_id == aweme_id))
             aweme_detail = result.scalar_one_or_none()
