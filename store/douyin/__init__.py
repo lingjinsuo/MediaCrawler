@@ -179,7 +179,10 @@ async def update_douyin_aweme(aweme_item: Dict):
         "note_download_url": ",".join(_extract_note_image_list(aweme_item)),
         "source_keyword": source_keyword_var.get(),
     }
-    utils.logger.info(f"[store.douyin.update_douyin_aweme] douyin aweme id:{aweme_id}, title:{save_content_item.get('title')}")
+    # 清理标题中的换行符，避免日志输出混乱，并截取前30个字符
+    clean_title = save_content_item.get('title', '').replace('\n', ' ').replace('\r', ' ')
+    display_title = clean_title[:30] + '...' if len(clean_title) > 30 else clean_title
+    utils.logger.info(f"[store.douyin.update_douyin_aweme] douyin aweme id:{aweme_id}, title:{display_title}")
     await DouyinStoreFactory.create_store().store_content(content_item=save_content_item)
 
 

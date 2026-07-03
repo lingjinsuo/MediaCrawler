@@ -263,7 +263,6 @@ class DouYinCrawler(AbstractCrawler):
                 # Sleep after fetching comments
                 await asyncio.sleep(crawl_interval)
                 utils.logger.info(f"[DouYinCrawler.get_comments] Sleeping for {crawl_interval} seconds after fetching comments for aweme {aweme_id}")
-                utils.logger.info(f"[DouYinCrawler.get_comments] aweme_id: {aweme_id} comments have all been obtained and filtered ...")
             except DataFetchError as e:
                 utils.logger.error(f"[DouYinCrawler.get_comments] aweme_id: {aweme_id} get comments failed, error: {e}")
 
@@ -407,7 +406,6 @@ class DouYinCrawler(AbstractCrawler):
             aweme_item (Dict): 抖音作品详情
         """
         if not config.ENABLE_GET_MEIDAS:
-            utils.logger.info(f"[DouYinCrawler.get_aweme_media] Crawling image mode is not enabled")
             return
         # List of note urls. If it is a short video type, an empty list will be returned.
         note_download_url: List[str] = douyin_store._extract_note_image_list(aweme_item)
