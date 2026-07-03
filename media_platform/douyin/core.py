@@ -134,6 +134,7 @@ class DouYinCrawler(AbstractCrawler):
             source_keyword_var.set(keyword)
             utils.logger.info(f"[DouYinCrawler.search] Current keyword: {keyword}")
             aweme_list: List[str] = []
+            total_fetched_count = 0  # 累计查出的总条数
             page = 0
             dy_search_id = ""
             while (page - start_page + 1) * dy_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
@@ -162,6 +163,7 @@ class DouYinCrawler(AbstractCrawler):
                     break
                 dy_search_id = posts_res.get("extra", {}).get("logid", "")
                 page_aweme_list = []
+                page_aweme_count = 0
                 for post_item in posts_res.get("data"):
                     try:
                         aweme_info: Dict = (post_item.get("aweme_info") or post_item.get("aweme_mix_info", {}).get("mix_items")[0])
@@ -169,8 +171,10 @@ class DouYinCrawler(AbstractCrawler):
                         continue
                     aweme_list.append(aweme_info.get("aweme_id", ""))
                     page_aweme_list.append(aweme_info.get("aweme_id", ""))
+                    page_aweme_count += 1
                     await douyin_store.update_douyin_aweme(aweme_item=aweme_info)
                     await self.get_aweme_media(aweme_item=aweme_info)
+                total_fetched_count += page_aweme_count
                 
                 # Batch get note comments for the current page
                 await self.batch_get_note_comments(page_aweme_list)
@@ -178,7 +182,8 @@ class DouYinCrawler(AbstractCrawler):
                 # Sleep after each page navigation
                 await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
                 utils.logger.info(f"[DouYinCrawler.search] Sleeping for {config.CRAWLER_MAX_SLEEP_SEC} seconds after page {page-1}")
-            utils.logger.info(f"[DouYinCrawler.search] keyword:{keyword}, aweme_list:{aweme_list}")
+            # 打印搜索统计信息
+            utils.logger.info(f"[DouYinCrawler.search] keyword:{keyword}, 共查出 {total_fetched_count} 条数据，根据配置 CRAWLER_MAX_NOTES_COUNT={config.CRAWLER_MAX_NOTES_COUNT}，只处理前 {len(aweme_list)} 条，搜索结束")
 
     async def get_specified_awemes(self):
         """Get the information and comments of the specified post from URLs or IDs"""
@@ -290,6 +295,7 @@ class DouYinCrawler(AbstractCrawler):
             all_video_list = await self.dy_client.get_all_user_aweme_posts(sec_user_id=user_id, callback=self.fetch_creator_video_detail)
 
             video_ids = [video_item.get("aweme_id") for video_item in all_video_list]
+            utils.logger.info(f"[DouYinCrawler.get_creators_and_videos] sec_user_id:{user_id}, 共获取 {len(video_ids)} 个视频，搜索结束")
             await self.batch_get_note_comments(video_ids)
 
     async def fetch_creator_video_detail(self, video_list: List[Dict]):

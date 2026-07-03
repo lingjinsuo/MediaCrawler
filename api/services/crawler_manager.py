@@ -171,6 +171,31 @@ class CrawlerManager:
             page = match.group(2)
             return f"[{platform}] 搜索第 {page} 页..."
 
+        # Pattern for creator search completion log
+        match = re.search(r"\[(\w+)\.get_creators_and_videos\] sec_user_id:(\S+), 共获取 (\d+) 个视频，搜索结束", line)
+        if match:
+            platform = match.group(1)
+            sec_user_id = match.group(2)
+            video_count = match.group(3)
+            return f"[{platform}] sec_user_id: {sec_user_id[:20]}..., 共获取 {video_count} 个视频，搜索结束"
+
+        # Pattern for keyword search completion log
+        match = re.search(r"\[(\w+)\.search\] keyword:([^,]+), 共查出 (\d+) 条数据，根据配置", line)
+        if match:
+            platform = match.group(1)
+            keyword = match.group(2).strip()
+            total = match.group(3)
+            return f"[{platform}] keyword: {keyword}, 共查出 {total} 条数据，搜索结束"
+
+        # Pattern for sleeping after fetching comments/media/detail logs
+        match = re.search(r"\[(\w+)\.(get_comments|get_aweme_detail|get_aweme_media)\] Sleeping for (\d+) seconds after (fetching comments|fetching aweme|fetching media) for (aweme|note) (\S+)", line)
+        if match:
+            platform = match.group(1)
+            action = match.group(3).replace("fetching ", "")
+            seconds = match.group(3)
+            item_id = match.group(6)
+            return f"[{platform}] 等待 {seconds}s 后继续..."
+
         # Keep other important logs as-is
         important_patterns = [
             r"Begin",
@@ -179,6 +204,7 @@ class CrawlerManager:
             r"Login",
             r"Browser",
             r"title:",
+            r"Sleeping for",
         ]
         for pattern in important_patterns:
             if re.search(pattern, line, re.IGNORECASE):
