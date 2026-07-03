@@ -64,9 +64,9 @@ class CrawlerManager:
             message=message
         )
         self._logs.append(entry)
-        # Keep last 500 logs
-        if len(self._logs) > 500:
-            self._logs = self._logs[-500:]
+        # Keep last 5000 logs
+        if len(self._logs) > 5000:
+            self._logs = self._logs[-5000:]
         return entry
 
     async def _push_log(self, entry: LogEntry):
