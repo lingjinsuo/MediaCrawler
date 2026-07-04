@@ -96,18 +96,19 @@
     <div class="table-container">
       <table>
         <thead>
-          <tr>
-            <th>ID</th>
-            <th>平台</th>
-            <th>作品信息</th>
-            <th>评论内容</th>
-            <th>评论者</th>
-            <th>状态</th>
-            <th>操作</th>
-          </tr>
+           <tr>
+             <th>ID</th>
+             <th>平台</th>
+             <th>作品信息</th>
+             <th>评论内容</th>
+             <th>评论时间</th>
+             <th>评论者</th>
+             <th>状态</th>
+             <th>操作</th>
+           </tr>
         </thead>
         <tbody id="tableBody">
-          <tr><td colspan="7" class="loading">加载中...</td></tr>
+          <tr><td colspan="8" class="loading">加载中...</td></tr>
         </tbody>
       </table>
     </div>
@@ -179,10 +180,16 @@
       }
     }
     
+    function formatTime(timestamp) {
+      if (!timestamp) return '-';
+      const d = new Date(timestamp * 1000);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    }
+    
     function renderTable(items) {
       const tbody = document.getElementById('tableBody');
       if (items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">暂无数据</td></tr>';
         return;
       }
       
@@ -196,6 +203,7 @@
             </a>
           </td>
           <td class="comment-content" title="${item.comment_content || ''}">${item.comment_content || '-'}</td>
+          <td style="white-space: nowrap;">${formatTime(item.comment_time)}</td>
           <td>${item.comment_nickname || '-'}</td>
           <td><span class="status-badge ${item.push_status === 0 ? 'pending' : 'processed'}">${item.push_status === 0 ? '待处理' : '已处理'}</span></td>
           <td class="actions">
