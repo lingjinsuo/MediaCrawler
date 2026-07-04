@@ -138,7 +138,7 @@ class CommentAnalysisBatch:
             FROM {cfg['comment_table']} cmt
             LEFT JOIN {cfg['note_table']} xn ON cmt.{note_id_field} = xn.{cfg['note_id_field']}
             WHERE cmt.analysis_status = 0
-            LIMIT 10
+            LIMIT 500
         """)
         
         result = await session.execute(query)
