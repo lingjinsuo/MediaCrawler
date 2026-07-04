@@ -191,10 +191,9 @@
           <td>${item.id}</td>
           <td><span class="platform-tag ${item.platform}">${item.platform_name}</span></td>
           <td>
-            <div style="max-width: 200px;">
-              <div style="font-weight: 500; margin-bottom: 4px;">${item.note_title || '-'}</div>
-              <a href="${item.note_url || '#'}" target="_blank" style="color: #4f46e5; font-size: 12px;">查看作品 →</a>
-            </div>
+            <a href="${item.note_url || '#'}" target="_blank" title="${item.note_title || ''}" style="color: #4f46e5; text-decoration: none; max-width: 200px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              ${item.note_title ? (item.note_title.length > 20 ? item.note_title.substring(0, 20) + '...' : item.note_title) : '-'}
+            </a>
           </td>
           <td class="comment-content" title="${item.comment_content || ''}">${item.comment_content || '-'}</td>
           <td>${item.comment_nickname || '-'}</td>
