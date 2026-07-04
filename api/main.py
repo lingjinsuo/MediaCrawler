@@ -31,7 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from .routers import crawler_router, data_router, websocket_router
+from .routers import crawler_router, data_router, websocket_router, comment_push_router
 
 app = FastAPI(
     title="MediaCrawler WebUI API",
@@ -60,6 +60,7 @@ app.add_middleware(
 app.include_router(crawler_router, prefix="/api")
 app.include_router(data_router, prefix="/api")
 app.include_router(websocket_router, prefix="/api")
+app.include_router(comment_push_router, prefix="/api")
 
 
 @app.get("/")
@@ -79,6 +80,16 @@ async def serve_frontend():
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok"}
+
+
+@app.get("/comment-push")
+async def serve_comment_push_page():
+    """Return comment push management page"""
+    from fastapi.responses import FileResponse
+    push_page_path = os.path.join(WEBUI_DIR, "comment_push.html")
+    if os.path.exists(push_page_path):
+        return FileResponse(push_page_path)
+    return {"error": "Page not found"}
 
 
 @app.get("/api/env/check")
