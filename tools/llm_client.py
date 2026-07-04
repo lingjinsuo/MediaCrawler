@@ -71,11 +71,9 @@ class MiniMaxClient:
                 
                 content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
                 
-                print(f"[LLM Client] Raw response: {content}")
                 return self._parse_response(content)
                 
         except Exception as e:
-            print(f"[LLM Client] Error: {e}")
             raise
     
     def _build_prompt(self, comment_content: str) -> str:
@@ -90,7 +88,6 @@ class MiniMaxClient:
         """解析LLM响应"""
         content = content.strip()
         
-        print(f"[DEBUG] Raw content: '{content}'")
         
         # 提取最终答案（去推理过程）
         # LLM返回格式通常是: <think>推理过程</think>答案
@@ -99,20 +96,24 @@ class MiniMaxClient:
             parts = content.split("</think>")
             final_answer = parts[-1].strip() if len(parts) > 1 else content
         
-        print(f"[DEBUG] Final answer: '{final_answer}'")
+        # 清理可能的引号
+        final_answer = final_answer.strip('"\'。')
+        
         
         # 检查最终答案
         has_yes = "是" in final_answer
-        has_no = "否" in final_answer
+        has_no = "否" in final_answer or final_answer == "不" or final_answer == "no" or final_answer == "No"
         
-        print(f"[DEBUG] has_yes={has_yes}, has_no={has_no}")
         
         if has_yes and not has_no:
             return True, "判断为有购买意图"
-        elif has_no:
+        elif has_no or final_answer in ["不", "no", "No"]:
             return False, "判断为无购买意图"
+        elif not final_answer:
+            # 空答案，默认无购买意图
+            return False, "无法明确判断，默认无购买意图"
         else:
-            # 默认认为无购买意图，避免误推送
+            # 其他情况，默认无购买意图
             return False, "无法明确判断，默认无购买意图"
 
 

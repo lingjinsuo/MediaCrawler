@@ -13,7 +13,7 @@ import asyncio
 import argparse
 import time
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 
 from sqlalchemy import select, update, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -104,10 +104,15 @@ class CommentAnalysisBatch:
             # 2. 逐条分析
             for idx, comment in enumerate(comments):
                 try:
-                    await self._process_comment(session, comment, cfg)
-                    print(f"[{cfg['name']}] [{idx+1}/{len(comments)}] 分析完成")
+                    has_intent, reason = await self._process_comment(session, comment, cfg)
+                    content_preview = comment["comment_content"][:30].replace("\n", " ") if comment["comment_content"] else ""
+                    if has_intent:
+                        print(f"[{cfg['name']}] [{idx+1}/{len(comments)}] 分析 -> 有购买意图。评论内容：{content_preview}")
+                    else:
+                        print(f"[{cfg['name']}] [{idx+1}/{len(comments)}] 分析 -> {reason}。评论内容：{content_preview}")
                 except Exception as e:
-                    print(f"[{cfg['name']}] [{idx+1}/{len(comments)}] 分析失败: {e}")
+                    content_preview = comment["comment_content"][:30].replace("\n", " ") if comment["comment_content"] else ""
+                    print(f"[{cfg['name']}] [{idx+1}/{len(comments)}] 分析 -> 失败: {e}。评论内容：{content_preview}")
                 
                 # 避免请求过快
                 await asyncio.sleep(0.5)
@@ -155,7 +160,7 @@ class CommentAnalysisBatch:
         
         return comments
     
-    async def _process_comment(self, session: AsyncSession, comment: dict, cfg: dict):
+    async def _process_comment(self, session: AsyncSession, comment: dict, cfg: dict) -> Tuple[bool, str]:
         """处理单条评论"""
         comment_id = comment["cmt_id"]
         content = comment["comment_content"]
@@ -163,17 +168,15 @@ class CommentAnalysisBatch:
         # 调用LLM分析
         has_intent, reason = await analyze_comment_purchase_intent(content)
         
-        # 显示评论摘要（前30字）
-        content_preview = content[:30].replace("\n", " ") if content else ""
         if has_intent:
             # 有购买意图：更新状态为2，并写入推送表
             await self._update_comment_status(session, comment_id, 2, cfg)
             await self._insert_push_record(session, comment, cfg)
-            print(f"  -> 有购买意图: {reason}。评论内容：{content_preview}")
         else:
             # 无购买意图：更新状态为1
             await self._update_comment_status(session, comment_id, 1, cfg)
-            print(f"  -> 无购买意图: {reason}。评论内容：{content_preview}")
+        
+        return has_intent, reason
     
     async def _update_comment_status(self, session: AsyncSession, comment_id: int, status: int, cfg: dict):
         """更新评论状态"""
