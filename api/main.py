@@ -26,6 +26,7 @@ import os
 import sys
 import subprocess
 import uvicorn
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -33,7 +34,53 @@ from fastapi.responses import FileResponse
 
 from .routers import crawler_router, data_router, websocket_router, comment_push_router
 
+# 调度器任务
+scheduler_task = None
+
+
+async def run_batch_scheduler():
+    """评论分析调度器 - 9-20点每小时执行一次"""
+    from datetime import datetime
+    from sql.comment_analysis_batch import CommentAnalysisBatch
+    
+    batch = CommentAnalysisBatch()
+    
+    while True:
+        now = datetime.now()
+        hour = now.hour
+        
+        if 9 <= hour < 20:
+            print(f"[调度器] 当前时间 {hour}:00，执行跑批")
+            try:
+                await batch.run()
+            except Exception as e:
+                print(f"[调度器] 跑批执行失败: {e}")
+        else:
+            print(f"[调度器] 当前时间 {hour}:00，跳过执行")
+        
+        await asyncio.sleep(3600)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理"""
+    global scheduler_task
+    # 启动时：创建调度器后台任务
+    scheduler_task = asyncio.create_task(run_batch_scheduler())
+    print("[启动] 评论分析调度器已启动 (9-20点每小时执行)")
+    yield
+    # 关闭时：取消调度器任务
+    if scheduler_task:
+        scheduler_task.cancel()
+        try:
+            await scheduler_task
+        except asyncio.CancelledError:
+            pass
+    print("[关闭] 评论分析调度器已停止")
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="MediaCrawler WebUI API",
     description="API for controlling MediaCrawler from WebUI",
     version="1.0.0"
