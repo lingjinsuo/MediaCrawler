@@ -40,23 +40,30 @@ scheduler_task = None
 
 async def run_batch_scheduler():
     """评论分析调度器 - 9-20点每小时执行一次"""
+    import time
     from datetime import datetime
     from sql.comment_analysis_batch import CommentAnalysisBatch
     
     batch = CommentAnalysisBatch()
+    
+    # 启动后先等待到下一个整点
+    now = datetime.now()
+    seconds_to_next_hour = 3600 - now.minute * 60 - now.second
+    print(f"[调度器] 等待到下一个整点 ({seconds_to_next_hour}秒)")
+    await asyncio.sleep(seconds_to_next_hour)
     
     while True:
         now = datetime.now()
         hour = now.hour
         
         if 9 <= hour < 20:
-            print(f"[调度器] 当前时间 {hour}:00，执行跑批")
+            print(f"[调度器] {hour}:00，执行跑批")
             try:
                 await batch.run()
             except Exception as e:
                 print(f"[调度器] 跑批执行失败: {e}")
         else:
-            print(f"[调度器] 当前时间 {hour}:00，跳过执行")
+            print(f"[调度器] {hour}:00，跳过执行")
         
         await asyncio.sleep(3600)
 
