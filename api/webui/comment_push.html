@@ -232,17 +232,13 @@
     }
     
     async function markProcessed(id) {
-      if (!confirm('确定标记为已处理？')) return;
-      
       try {
         const res = await fetch(`${API_BASE}/update`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id, push_status: 1, process_content: '手动标记' })
         });
-        const data = await res.json();
-        if (data.status === 'ok') {
-          alert('操作成功');
+        if (res.ok) {
           loadData();
           loadStats();
         } else {
