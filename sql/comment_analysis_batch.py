@@ -202,9 +202,14 @@ class CommentAnalysisBatch:
             )
         """)
         
+        # 截取字段避免超过数据库字段长度
+        note_title = comment.get("note_title")
+        if note_title and len(note_title) > 500:
+            note_title = note_title[:500]
+        
         await session.execute(query, {
             "platform": cfg["platform"],
-            "note_title": comment.get("note_title"),
+            "note_title": note_title,
             "note_url": comment.get("note_url"),
             "note_nickname": comment.get("note_nickname"),
             "comment_id": comment.get("comment_id"),
