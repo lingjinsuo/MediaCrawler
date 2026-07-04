@@ -80,30 +80,36 @@ class MiniMaxClient:
     
     def _build_prompt(self, comment_content: str) -> str:
         """构建分析提示词"""
-        return f"""请分析以下评论是否具有买卖/收售意图。
+        return f"""你是一个专业的电商评论分析师。请判断下面这条评论是否表达了购买或出售的意图（比如问价格、问在哪买、说想买/想卖、求链接等）。
 
-只要评论中涉及以下任何一种情况，都属于有买卖/收售意图：
-1. 询问价格/多少钱/什么价
-2. 询问在哪里买/在哪里卖/有链接吗/有购买渠道吗
-3. 表达购买意向：想买/想入手/求购/要买
-4. 表达出售意向：想卖/出售/出/卖
-5. 表达收购/回收/收购
-6. 问能不能买卖/能不能出
+评论：{comment_content}
 
-如果评论只是在夸赞、聊天、或者没有任何买卖意图，则回答"否"。
-
-评论内容：
-{comment_content}
-
-请只回答 "是" 或 "否"，不要包含其他内容。"""
+请只回答"是"或"否"。"""
     
     def _parse_response(self, content: str) -> tuple[bool, str]:
         """解析LLM响应"""
-        content = content.strip().upper()
+        content = content.strip()
         
-        if "是" in content and "否" not in content:
+        print(f"[DEBUG] Raw content: '{content}'")
+        
+        # 提取最终答案（去推理过程）
+        # LLM返回格式通常是: <think>推理过程</think>答案
+        final_answer = content
+        if "</think>" in content:
+            parts = content.split("</think>")
+            final_answer = parts[-1].strip() if len(parts) > 1 else content
+        
+        print(f"[DEBUG] Final answer: '{final_answer}'")
+        
+        # 检查最终答案
+        has_yes = "是" in final_answer
+        has_no = "否" in final_answer
+        
+        print(f"[DEBUG] has_yes={has_yes}, has_no={has_no}")
+        
+        if has_yes and not has_no:
             return True, "判断为有购买意图"
-        elif "否" in content:
+        elif has_no:
             return False, "判断为无购买意图"
         else:
             # 默认认为无购买意图，避免误推送
