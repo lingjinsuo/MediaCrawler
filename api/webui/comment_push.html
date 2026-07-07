@@ -332,7 +332,7 @@
         const res = await fetch(`${API_BASE}/update`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, process_content: newContent })
+          body: JSON.stringify({ id, process_content: newContent, push_status: undefined })
         });
         
         if (res.ok) {
@@ -348,7 +348,7 @@
         const res = await fetch(`${API_BASE}/update`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, push_status: parseInt(status) })
+          body: JSON.stringify({ id, push_status: parseInt(status), process_content: null })
         });
         
         if (res.ok) {

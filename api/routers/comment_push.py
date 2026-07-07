@@ -46,7 +46,7 @@ class CommentPushUpdateRequest(BaseModel):
     """更新推送状态请求"""
     id: int
     process_content: Optional[str] = None
-    push_status: int = 1
+    push_status: Optional[int] = None
 
 
 # 平台名称映射
@@ -135,19 +135,27 @@ async def get_comment_push_list(
 async def update_comment_push(request: CommentPushUpdateRequest):
     """更新推送状态"""
     async with get_session() as session:
-        sql = text("""
+        # 只更新有值的字段
+        updates = []
+        params = {"id": request.id}
+        
+        if request.push_status is not None:
+            updates.append("push_status = :push_status")
+            params["push_status"] = request.push_status
+        
+        updates.append("process_time = NOW()")
+        
+        if request.process_content is not None:
+            updates.append("process_content = :process_content")
+            params["process_content"] = request.process_content
+        
+        sql = text(f"""
             UPDATE comment_push
-            SET push_status = :push_status,
-                process_content = :process_content,
-                process_time = NOW()
+            SET {', '.join(updates)}
             WHERE id = :id
         """)
         
-        result = await session.execute(sql, {
-            "id": request.id,
-            "push_status": request.push_status,
-            "process_content": request.process_content
-        })
+        result = await session.execute(sql, params)
         
         await session.commit()
         
