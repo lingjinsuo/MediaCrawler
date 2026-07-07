@@ -8,7 +8,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Inter', sans-serif; background: #f5f7fa; min-height: 100vh; padding: 20px; }
-    .container { max-width: 1200px; margin: 0 auto; }
+    .container { width: 100%; margin: 0; padding: 0; }
     
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .header h1 { font-size: 24px; color: #1a1a2e; }
@@ -229,7 +229,7 @@
               ${item.note_title ? (item.note_title.length > 20 ? item.note_title.substring(0, 20) + '...' : item.note_title) : '-'}
             </a>
           </td>
-          <td class="comment-content" title="${item.comment_content || ''}">${item.comment_content || '-'}</td>
+          <td class="comment-content" title="${item.comment_content || ''}">${item.comment_content ? (item.comment_content.length > 20 ? item.comment_content.substring(0, 20) + '...' : item.comment_content) : '-'}</td>
           <td style="white-space: nowrap;">${formatTime(item.comment_time)}</td>
           <td>${item.comment_nickname || '-'}</td>
           <td>
