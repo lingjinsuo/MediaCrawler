@@ -95,7 +95,8 @@
         <option value="5">浅谈业务中</option>
         <option value="6">已成单</option>
         <option value="7">成单失败</option>
-        <option value="8">其他</option>
+        <option value="8">其它</option>
+        <option value="9">完结</option>
       </select>
       <input type="text" id="searchInput" placeholder="搜索评论内容..." onkeyup="if(event.key==='Enter') loadData()" style="padding: 8px 16px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; width: 200px;">
       <button onclick="loadData()" style="background: #4f46e5; color: white;">🔍 搜索</button>
@@ -179,7 +180,8 @@
       5: '浅谈业务中',
       6: '已成单',
       7: '成单失败',
-      8: '其他'
+      8: '其它',
+      9: '完结'
     };
     
     async function loadData() {
@@ -245,7 +247,7 @@
                   onblur="saveProcessContent(this)">${item.process_content || ''}</span>
           </td>
           <td class="actions">
-            <button class="btn btn-process" onclick="markProcessed(${item.id})">标记已处理</button>
+            <button class="btn btn-process" onclick="markProcessed(${item.id})">标记已完结</button>
           </td>
         </tr>
       `).join('');
@@ -282,7 +284,7 @@
         const res = await fetch(`${API_BASE}/update`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, push_status: 1, process_content: '手动标记' })
+          body: JSON.stringify({ id, push_status: 9 })
         });
         if (res.ok) {
           loadData();
