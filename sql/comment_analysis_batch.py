@@ -164,6 +164,14 @@ class CommentAnalysisBatch:
         """处理单条评论"""
         comment_id = comment["cmt_id"]
         content = comment["comment_content"]
+        comment_time = comment.get("comment_time", 0)
+        
+        # 检查评论时间是否已超过3天，超过3天的不入库
+        three_days_ago = (int(time.time()) - 3 * 24 * 60 * 60) * 1000
+        if comment_time and comment_time < three_days_ago:
+            # 评论已超过3天，标记为已处理但不入库
+            await self._update_comment_status(session, comment_id, 1, cfg)
+            return False, "评论已超过3天，跳过入库"
         
         # 调用LLM分析
         has_intent, reason = await analyze_comment_purchase_intent(content)
@@ -190,6 +198,13 @@ class CommentAnalysisBatch:
     
     async def _insert_push_record(self, session: AsyncSession, comment: dict, cfg: dict):
         """写入推送表"""
+        # 计算3天前的时间戳（毫秒）
+        three_days_ago = (int(time.time()) - 3 * 24 * 60 * 60) * 1000
+        comment_time = comment.get("comment_time", 0)
+        
+        # 评论时间已超过3天，标记为已处理
+        push_status = 1 if comment_time and comment_time < three_days_ago else 0
+        
         query = text("""
             INSERT INTO comment_push (
                 platform, note_title, note_url, note_nickname,
@@ -198,7 +213,7 @@ class CommentAnalysisBatch:
             ) VALUES (
                 :platform, :note_title, :note_url, :note_nickname,
                 :comment_id, :comment_content, :comment_nickname, :comment_time,
-                :original_comment_id, 0, UNIX_TIMESTAMP(NOW()) * 1000, NOW()
+                :original_comment_id, :push_status, UNIX_TIMESTAMP(NOW()) * 1000, NOW()
             )
         """)
         
@@ -217,6 +232,7 @@ class CommentAnalysisBatch:
             "comment_nickname": comment.get("comment_nickname"),
             "comment_time": comment.get("comment_time"),
             "original_comment_id": comment.get("cmt_id"),
+            "push_status": push_status,
         })
 
 

@@ -87,9 +87,18 @@
       </select>
       <select id="statusFilter" onchange="loadData()">
         <option value="">全部状态</option>
-        <option value="0">待处理</option>
-        <option value="1">已处理</option>
+        <option value="0">未处理</option>
+        <option value="1">已阅读</option>
+        <option value="2">添加私域中</option>
+        <option value="3">已添加到私域</option>
+        <option value="4">未成功添加私域</option>
+        <option value="5">浅谈业务中</option>
+        <option value="6">已成单</option>
+        <option value="7">成单失败</option>
+        <option value="8">其他</option>
       </select>
+      <input type="text" id="searchInput" placeholder="搜索评论内容..." onkeyup="if(event.key==='Enter') loadData()" style="padding: 8px 16px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; width: 200px;">
+      <button onclick="loadData()" style="background: #4f46e5; color: white;">🔍 搜索</button>
       <span id="totalCount" style="margin-left: auto; color: #666;">共 0 条</span>
     </div>
     
@@ -97,15 +106,16 @@
       <table>
         <thead>
            <tr>
-             <th>ID</th>
-             <th>平台</th>
-             <th>作品信息</th>
-             <th>评论内容</th>
-             <th>评论时间</th>
-             <th>评论者</th>
-             <th>状态</th>
-             <th>操作</th>
-           </tr>
+              <th>ID</th>
+              <th>平台</th>
+              <th>作品信息</th>
+              <th>评论内容</th>
+              <th>评论时间</th>
+              <th>评论者</th>
+              <th>状态</th>
+              <th>处理内容</th>
+              <th>操作</th>
+            </tr>
         </thead>
         <tbody id="tableBody">
           <tr><td colspan="8" class="loading">加载中...</td></tr>
@@ -159,13 +169,28 @@
       `).join('');
     }
     
+    // 状态映射
+    const STATUS_MAP = {
+      0: '未处理',
+      1: '已阅读',
+      2: '添加私域中',
+      3: '已添加到私域',
+      4: '未成功添加私域',
+      5: '浅谈业务中',
+      6: '已成单',
+      7: '成单失败',
+      8: '其他'
+    };
+    
     async function loadData() {
       const platform = document.getElementById('platformFilter').value;
       const status = document.getElementById('statusFilter').value;
+      const search = document.getElementById('searchInput').value.trim();
       
       let url = `${API_BASE}/list?page=${currentPage}&page_size=20`;
       if (platform) url += `&platform=${platform}`;
       if (status) url += `&push_status=${status}`;
+      if (search) url += `&search=${encodeURIComponent(search)}`;
       
       try {
         const res = await fetch(url);
@@ -176,7 +201,7 @@
         document.getElementById('totalCount').textContent = `共 ${total} 条`;
       } catch (e) {
         console.error('加载数据失败:', e);
-        document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" class="empty">加载失败</td></tr>';
+        document.getElementById('tableBody').innerHTML = '<tr><td colspan="9" class="empty">加载失败</td></tr>';
       }
     }
     
@@ -205,7 +230,20 @@
           <td class="comment-content" title="${item.comment_content || ''}">${item.comment_content || '-'}</td>
           <td style="white-space: nowrap;">${formatTime(item.comment_time)}</td>
           <td>${item.comment_nickname || '-'}</td>
-          <td><span class="status-badge ${item.push_status === 0 ? 'pending' : 'processed'}">${item.push_status === 0 ? '待处理' : '已处理'}</span></td>
+          <td>
+            <select onchange="updateStatus(${item.id}, this.value)" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #e0e0e0; font-size: 12px; cursor: pointer;">
+              ${Object.entries(STATUS_MAP).map(([val, label]) => 
+                `<option value="${val}" ${item.push_status === parseInt(val) ? 'selected' : ''}>${label}</option>`
+              ).join('')}
+            </select>
+          </td>
+          <td>
+            <span contenteditable="true" 
+                  style="min-width: 100px; display: block; outline: none; padding: 4px 8px; border-radius: 4px; border: 1px solid #e0e0e0; cursor: text;"
+                  data-id="${item.id}"
+                  data-original="${item.process_content || ''}"
+                  onblur="saveProcessContent(this)">${item.process_content || ''}</span>
+          </td>
           <td class="actions">
             <button class="btn btn-process" onclick="markProcessed(${item.id})">标记已处理</button>
           </td>
@@ -279,6 +317,45 @@
       } finally {
         btn.disabled = false;
         btn.textContent = '🔄 同步';
+      }
+    }
+    
+    async function saveProcessContent(el) {
+      const id = parseInt(el.dataset.id);
+      const newContent = el.innerText.trim();
+      const originalContent = el.dataset.original || '';
+      
+      // 如果内容没变，不保存
+      if (newContent === originalContent) return;
+      
+      try {
+        const res = await fetch(`${API_BASE}/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, process_content: newContent })
+        });
+        
+        if (res.ok) {
+          el.dataset.original = newContent;
+        }
+      } catch (e) {
+        console.error('保存失败:', e);
+      }
+    }
+    
+    async function updateStatus(id, status) {
+      try {
+        const res = await fetch(`${API_BASE}/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, push_status: parseInt(status) })
+        });
+        
+        if (res.ok) {
+          loadStats();
+        }
+      } catch (e) {
+        console.error('状态更新失败:', e);
       }
     }
     

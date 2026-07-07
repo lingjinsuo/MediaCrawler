@@ -61,6 +61,7 @@ PLATFORM_NAMES = {
 async def get_comment_push_list(
     platform: Optional[str] = None,
     push_status: Optional[int] = None,
+    search: Optional[str] = None,
     page: int = 1,
     page_size: int = 20
 ):
@@ -78,6 +79,10 @@ async def get_comment_push_list(
             where_clauses.append("push_status = :push_status")
             params["push_status"] = push_status
         
+        if search:
+            where_clauses.append("comment_content LIKE :search")
+            params["search"] = f"%{search}%"
+        
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
         
         # 查询总数
@@ -94,7 +99,7 @@ async def get_comment_push_list(
                    create_time, analysis_time
             FROM comment_push
             WHERE {where_sql}
-            ORDER BY comment_time DESC
+            ORDER BY push_status ASC, comment_time DESC
             LIMIT :limit OFFSET :offset
         """)
         params["limit"] = page_size
