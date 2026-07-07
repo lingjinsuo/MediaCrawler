@@ -94,7 +94,7 @@ async def get_comment_push_list(
                    create_time, analysis_time
             FROM comment_push
             WHERE {where_sql}
-            ORDER BY create_time DESC
+            ORDER BY comment_time DESC
             LIMIT :limit OFFSET :offset
         """)
         params["limit"] = page_size
