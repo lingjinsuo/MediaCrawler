@@ -56,6 +56,16 @@ PLATFORM_CONFIG = {
 }
 
 
+def normalize_timestamp_to_seconds(ts: Optional[int]) -> int:
+    """将评论时间戳统一为秒。小红书等为毫秒，抖音等为秒。"""
+    if not ts:
+        return 0
+    ts = int(ts)
+    if ts >= 10**12:
+        return ts // 1000
+    return ts
+
+
 class CommentAnalysisBatch:
     """评论分析跑批"""
     
@@ -164,11 +174,11 @@ class CommentAnalysisBatch:
         """处理单条评论"""
         comment_id = comment["cmt_id"]
         content = comment["comment_content"]
-        comment_time = comment.get("comment_time", 0)
+        comment_time_sec = normalize_timestamp_to_seconds(comment.get("comment_time", 0))
         
         # 检查评论时间是否已超过3天，超过3天的不入库
-        three_days_ago = (int(time.time()) - 3 * 24 * 60 * 60) * 1000
-        if comment_time and comment_time < three_days_ago:
+        three_days_ago = int(time.time()) - 3 * 24 * 60 * 60
+        if comment_time_sec and comment_time_sec < three_days_ago:
             # 评论已超过3天，标记为已处理但不入库
             await self._update_comment_status(session, comment_id, 1, cfg)
             return False, "评论已超过3天，跳过入库"
@@ -198,12 +208,11 @@ class CommentAnalysisBatch:
     
     async def _insert_push_record(self, session: AsyncSession, comment: dict, cfg: dict):
         """写入推送表"""
-        # 计算3天前的时间戳（毫秒）
-        three_days_ago = (int(time.time()) - 3 * 24 * 60 * 60) * 1000
-        comment_time = comment.get("comment_time", 0)
+        comment_time_sec = normalize_timestamp_to_seconds(comment.get("comment_time", 0))
+        three_days_ago = int(time.time()) - 3 * 24 * 60 * 60
         
         # 评论时间已超过3天，标记为已处理
-        push_status = 1 if comment_time and comment_time < three_days_ago else 0
+        push_status = 1 if comment_time_sec and comment_time_sec < three_days_ago else 0
         
         query = text("""
             INSERT INTO comment_push (
@@ -230,7 +239,7 @@ class CommentAnalysisBatch:
             "comment_id": comment.get("comment_id"),
             "comment_content": comment.get("comment_content"),
             "comment_nickname": comment.get("comment_nickname"),
-            "comment_time": comment.get("comment_time"),
+            "comment_time": comment_time_sec,
             "original_comment_id": comment.get("cmt_id"),
             "push_status": push_status,
         })
