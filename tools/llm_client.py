@@ -111,10 +111,10 @@ class MiniMaxClient:
             return False, "判断为无购买意图"
         elif not final_answer:
             # 空答案，默认无购买意图
-            return False, "无法明确判断，默认无购买意图"
+            return True, "无法明确判断，默认无购买意图-空答案"
         else:
             # 其他情况，默认无购买意图
-            return False, "无法明确判断，默认无购买意图"
+            return True, "无法明确判断，默认无购买意图-其他情况"
 
 
 # 全局客户端实例
