@@ -25,6 +25,8 @@
     .filters select, .filters button { padding: 8px 16px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; cursor: pointer; }
     .filters button { background: #4f46e5; color: white; border: none; }
     .filters button:hover { background: #4338ca; }
+    .filters button.clear-btn { background: #6b7280; }
+    .filters button.clear-btn:hover { background: #4b5563; }
     
     .table-container { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
     table { width: 100%; border-collapse: collapse; }
@@ -98,7 +100,12 @@
         <option value="8">其它</option>
         <option value="9">完结</option>
       </select>
-      <input type="text" id="searchInput" placeholder="搜索评论内容..." onkeyup="if(event.key==='Enter') loadData()" style="padding: 8px 16px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; width: 200px;">
+      <input type="text" id="searchInput" placeholder="搜索评论内容/评论者名字..." onkeyup="if(event.key==='Enter') loadData()" style="padding: 8px 16px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; width: 220px;">
+      <label style="font-size: 14px; color: #666;">创建时间:</label>
+      <input type="datetime-local" id="startTimeInput" onchange="loadData()" style="padding: 8px 16px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; width: 200px;">
+      <span style="color: #999;">-</span>
+      <input type="datetime-local" id="endTimeInput" onchange="loadData()" style="padding: 8px 16px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; width: 200px;">
+      <button onclick="clearTimeFilter()" style="background: #6b7280; color: white;">清除时间</button>
       <button onclick="loadData()" style="background: #4f46e5; color: white;">🔍 搜索</button>
       <span id="totalCount" style="margin-left: auto; color: #666;">共 0 条</span>
     </div>
@@ -111,8 +118,9 @@
               <th>平台</th>
               <th>作品信息</th>
               <th>评论内容</th>
-              <th>评论时间</th>
-              <th>评论者</th>
+               <th>评论时间</th>
+               <th>抓取时间</th>
+               <th>评论者</th>
               <th>状态</th>
               <th>处理内容</th>
               <th>操作</th>
@@ -188,11 +196,22 @@
       const platform = document.getElementById('platformFilter').value;
       const status = document.getElementById('statusFilter').value;
       const search = document.getElementById('searchInput').value.trim();
+      const startTimeInput = document.getElementById('startTimeInput').value.trim();
+      const endTimeInput = document.getElementById('endTimeInput').value.trim();
       
       let url = `${API_BASE}/list?page=${currentPage}&page_size=20`;
       if (platform) url += `&platform=${platform}`;
       if (status) url += `&push_status=${status}`;
       if (search) url += `&search=${encodeURIComponent(search)}`;
+      // 将 datetime-local 格式转换为毫秒时间戳
+      if (startTimeInput) {
+        const startTs = new Date(startTimeInput).getTime();
+        url += `&start_time=${startTs}`;
+      }
+      if (endTimeInput) {
+        const endTs = new Date(endTimeInput).getTime();
+        url += `&end_time=${endTs}`;
+      }
       
       try {
         const res = await fetch(url);
@@ -209,7 +228,9 @@
     
     function formatTime(timestamp) {
       if (!timestamp) return '-';
-      const d = new Date(timestamp * 1000);
+      // 如果时间戳大于1e12（毫秒级别），直接使用；否则转换为毫秒
+      const ts = timestamp > 1e12 ? timestamp : timestamp * 1000;
+      const d = new Date(ts);
       return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
     }
     
@@ -231,6 +252,7 @@
           </td>
           <td class="comment-content" title="${item.comment_content || ''}">${item.comment_content ? (item.comment_content.length > 20 ? item.comment_content.substring(0, 20) + '...' : item.comment_content) : '-'}</td>
           <td style="white-space: nowrap;">${formatTime(item.comment_time)}</td>
+          <td style="white-space: nowrap;">${formatTime(item.create_time)}</td>
           <td>${item.comment_nickname || '-'}</td>
           <td>
             <select onchange="updateStatus(${item.id}, this.value)" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #e0e0e0; font-size: 12px; cursor: pointer;">
@@ -363,6 +385,30 @@
     
     // 初始化
     loadStats();
+    
+    // 设置默认时间范围：最近3天，结束时间默认为当天23:59:59
+    function setDefaultTimeRange() {
+      const now = new Date();
+      const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+      
+      // 结束时间设为当天23:59:59
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+      
+      const formatDateTimeLocal = (d) => {
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      };
+      
+      document.getElementById('startTimeInput').value = formatDateTimeLocal(threeDaysAgo);
+      document.getElementById('endTimeInput').value = formatDateTimeLocal(endOfDay);
+    }
+    
+    function clearTimeFilter() {
+      document.getElementById('startTimeInput').value = '';
+      document.getElementById('endTimeInput').value = '';
+      loadData();
+    }
+    
+    setDefaultTimeRange();
     loadData();
   </script>
 </body>

@@ -62,10 +62,22 @@ async def get_comment_push_list(
     platform: Optional[str] = None,
     push_status: Optional[int] = None,
     search: Optional[str] = None,
+    start_time: Optional[int] = None,
+    end_time: Optional[int] = None,
     page: int = 1,
     page_size: int = 20
 ):
-    """获取评论推送列表"""
+    """获取评论推送列表
+    
+    Args:
+        platform: 平台筛选
+        push_status: 推送状态筛选
+        search: 搜索关键词（搜索评论内容和评论者名字）
+        start_time: 创建时间戳筛选起始（毫秒时间戳，如 1783924010000）
+        end_time: 创建时间戳筛选结束（毫秒时间戳，如 1783924010000）
+        page: 页码
+        page_size: 每页数量
+    """
     async with get_session() as session:
         # 构建查询
         where_clauses = []
@@ -79,9 +91,19 @@ async def get_comment_push_list(
             where_clauses.append("push_status = :push_status")
             params["push_status"] = push_status
         
+        # 搜索评论内容和评论者名字
         if search:
-            where_clauses.append("comment_content LIKE :search")
+            where_clauses.append("(comment_content LIKE :search OR comment_nickname LIKE :search)")
             params["search"] = f"%{search}%"
+        
+        # 创建时间范围筛选
+        if start_time is not None:
+            where_clauses.append("create_time >= :start_time")
+            params["start_time"] = start_time
+        
+        if end_time is not None:
+            where_clauses.append("create_time <= :end_time")
+            params["end_time"] = end_time
         
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
         
