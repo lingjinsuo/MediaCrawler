@@ -237,4 +237,70 @@ async def run_preset(preset_id: str):
     }
 
 
+@router.post("/batch/run")
+async def batch_run_presets():
+    """一键顺序执行所有已启用的预设方案。
+
+    会跳过：
+      - 未启用的预设（enabled=False）
+      - 必填项不合法（例如搜索模式无关键词）
+
+    按 sort_order 顺序依次执行；上一个爬虫进程结束（成功/失败）后再启动下一个。
+    """
+    raw_items = await _read_raw_presets()
+    presets = _parse_presets(raw_items)
+
+    # 按 sort_order 排好序再过滤
+    presets.sort(key=lambda p: p.sort_order)
+    enabled = [p for p in presets if p.enabled]
+
+    if not enabled:
+        raise HTTPException(status_code=400, detail="没有可执行的已启用预设")
+
+    # 逐个校验必填项
+    skipped: List[str] = []
+    items: List[tuple] = []
+    for preset in enabled:
+        try:
+            _validate_preset(preset)
+        except HTTPException as e:
+            skipped.append(f"{preset.name or preset.platform.value}: {e.detail}")
+            continue
+        items.append((
+            preset.name or preset.platform.value,
+            _to_start_request(preset),
+        ))
+
+    if not items:
+        raise HTTPException(
+            status_code=400,
+            detail="所有启用的预设都缺少必要参数: " + "; ".join(skipped),
+        )
+
+    success = await crawler_manager.start_batch(items)
+    if not success:
+        if crawler_manager._batch_active:
+            raise HTTPException(status_code=400, detail="已有批量任务在运行，请先取消")
+        if crawler_manager.process and crawler_manager.process.poll() is None:
+            raise HTTPException(status_code=400, detail="已有爬虫任务正在运行，请先停止")
+        raise HTTPException(status_code=500, detail="启动批量任务失败")
+
+    return {
+        "status": "ok",
+        "message": f"已加入批量队列，共 {len(items)} 个任务",
+        "total": len(items),
+        "skipped": skipped,
+    }
+
+
+@router.post("/batch/cancel")
+async def batch_cancel_presets():
+    """取消正在执行的批量队列"""
+    if not crawler_manager._batch_active:
+        raise HTTPException(status_code=400, detail="当前没有批量任务在运行")
+
+    await crawler_manager.cancel_batch()
+    return {"status": "ok", "message": "已取消批量任务"}
+
+
 

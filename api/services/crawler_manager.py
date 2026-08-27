@@ -47,6 +47,15 @@ class CrawlerManager:
         # Progress tracking
         self._total_items: int = 0
         self._current_index: int = 0
+        # Batch run state: when set, the manager will auto-chain
+        # every preset in this list one after another.
+        self._batch_queue: List[CrawlerStartRequest] = []
+        self._batch_names: List[str] = []
+        self._batch_index: int = 0
+        self._batch_total: int = 0
+        self._batch_active: bool = False
+        self._batch_task: Optional[asyncio.Task] = None
+        self._batch_cancel_requested: bool = False
 
     @property
     def logs(self) -> List[LogEntry]:
@@ -317,14 +326,167 @@ class CrawlerManager:
 
             return True
 
+    # ------------------------------------------------------------------
+    # Batch (queue) run helpers
+    # ------------------------------------------------------------------
+    async def start_batch(
+        self,
+        items: List[tuple],
+    ) -> bool:
+        """Start a batch of crawler tasks one after another.
+
+        ``items`` is a list of (display_name, CrawlerStartRequest) tuples.
+        The first item is started immediately; the rest are queued and
+        started automatically after the previous process exits.
+        """
+        async with self._lock:
+            if self._batch_active:
+                return False
+            if self.process and self.process.poll() is None:
+                # A standalone crawler is already running; refuse to queue.
+                return False
+            if not items:
+                return False
+
+            self._batch_queue = [req for _, req in items]
+            self._batch_names = [name for name, _ in items]
+            self._batch_index = 0
+            self._batch_total = len(items)
+            self._batch_active = True
+            self._batch_cancel_requested = False
+
+            entry = self._create_log_entry(
+                f"已加入批量队列，共 {self._batch_total} 个任务", "success"
+            )
+            await self._push_log(entry)
+
+            self._batch_task = asyncio.create_task(self._run_batch())
+            return True
+
+    async def cancel_batch(self) -> bool:
+        """Cancel the pending batch. If a crawler is currently running,
+        stop it as well so the queue won't advance."""
+        async with self._lock:
+            if not self._batch_active:
+                return False
+            self._batch_cancel_requested = True
+            entry = self._create_log_entry("正在取消批量任务...", "warning")
+            await self._push_log(entry)
+
+        # Stop the current crawler (outside the lock to avoid re-entrancy)
+        await self.stop()
+
+        task = self._batch_task
+        if task and not task.done():
+            try:
+                await asyncio.wait_for(task, timeout=20)
+            except asyncio.TimeoutError:
+                task.cancel()
+        return True
+
+    def clear_batch(self) -> None:
+        """Reset batch state after the queue finishes."""
+        self._batch_queue = []
+        self._batch_names = []
+        self._batch_index = 0
+        self._batch_total = 0
+        self._batch_active = False
+        self._batch_cancel_requested = False
+        self._batch_task = None
+
+    async def _run_batch(self) -> None:
+        """Drive the queued presets sequentially."""
+        try:
+            while self._batch_index < len(self._batch_queue):
+                if self._batch_cancel_requested:
+                    entry = self._create_log_entry(
+                        "批量任务已取消", "warning"
+                    )
+                    await self._push_log(entry)
+                    break
+
+                config = self._batch_queue[self._batch_index]
+                name = self._batch_names[self._batch_index]
+                entry = self._create_log_entry(
+                    f"[批量 {self._batch_index + 1}/{self._batch_total}] 开始: {name}",
+                    "success",
+                )
+                await self._push_log(entry)
+
+                started = await self.start(config)
+                if not started:
+                    entry = self._create_log_entry(
+                        f"[批量] 启动失败，跳过: {name}", "error"
+                    )
+                    await self._push_log(entry)
+                    # Bail out of the whole queue to avoid endless retries
+                    break
+
+                # Wait until the current process exits (or is stopped).
+                while self.process and self.process.poll() is None:
+                    if self._batch_cancel_requested:
+                        break
+                    await asyncio.sleep(0.5)
+
+                if self._batch_cancel_requested:
+                    entry = self._create_log_entry(
+                        "批量任务已取消", "warning"
+                    )
+                    await self._push_log(entry)
+                    break
+
+                exit_code = self.process.returncode if self.process else -1
+                if exit_code == 0:
+                    entry = self._create_log_entry(
+                        f"[批量] 完成: {name}", "success"
+                    )
+                else:
+                    entry = self._create_log_entry(
+                        f"[批量] 异常结束 (code={exit_code}): {name}", "warning"
+                    )
+                await self._push_log(entry)
+
+                self._batch_index += 1
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            entry = self._create_log_entry(
+                f"批量任务出错: {e}", "error"
+            )
+            await self._push_log(entry)
+        finally:
+            if self._batch_active:
+                if self._batch_cancel_requested:
+                    msg = "批量任务已终止"
+                else:
+                    msg = f"批量任务全部完成，共 {self._batch_total} 个"
+                entry = self._create_log_entry(msg, "success")
+                await self._push_log(entry)
+                self.clear_batch()
+
     def get_status(self) -> dict:
         """Get current status"""
+        current_name = None
+        if self._batch_active and 0 <= self._batch_index < len(self._batch_names):
+            current_name = self._batch_names[self._batch_index]
+        elif self.current_config is not None:
+            current_name = None
+
         return {
             "status": self.status,
             "platform": self.current_config.platform.value if self.current_config else None,
             "crawler_type": self.current_config.crawler_type.value if self.current_config else None,
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "error_message": None
+            "error_message": None,
+            # Batch progress
+            "batch_active": self._batch_active,
+            "batch_index": self._batch_index,
+            "batch_total": self._batch_total,
+            "batch_current_name": current_name,
+            "batch_pending_names": (
+                self._batch_names[self._batch_index + 1:]
+                if self._batch_active else []
+            ),
         }
 
     def _build_command(self, config: CrawlerStartRequest) -> list:

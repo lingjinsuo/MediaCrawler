@@ -93,6 +93,7 @@
                 </select>
                 <button class="btn btn-primary" id="add-btn">+ 新增预设</button>
                 <button class="btn btn-ghost" id="save-btn">保存全部</button>
+                <button class="btn btn-success" id="batch-run-btn" title="按顺序依次执行所有已启用的预设">▶ 一键启动</button>
             </div>
         </div>
 
@@ -101,7 +102,9 @@
             <span class="status-text" id="status-text">空闲</span>
             <span class="status-meta" id="status-meta"></span>
             <span class="spacer"></span>
+            <span class="status-meta" id="batch-meta" style="display:none;"></span>
             <span class="status-meta">共 <b id="total-count">0</b> 个预设</span>
+            <button class="btn btn-ghost" id="cancel-batch-btn" style="display:none;">取消队列</button>
             <button class="btn btn-danger" id="stop-btn" disabled>停止当前任务</button>
         </div>
 
@@ -164,7 +167,10 @@
         const statusDot = document.getElementById('status-dot');
         const statusText = document.getElementById('status-text');
         const statusMeta = document.getElementById('status-meta');
+        const batchMeta = document.getElementById('batch-meta');
         const stopBtn = document.getElementById('stop-btn');
+        const cancelBatchBtn = document.getElementById('cancel-batch-btn');
+        const batchRunBtn = document.getElementById('batch-run-btn');
         const logBody = document.getElementById('log-body');
         const wsState = document.getElementById('ws-state');
         const toastEl = document.getElementById('toast');
@@ -172,6 +178,7 @@
         let presets = [];
         let running = false;
         let runningPresetId = null;
+        let batchActive = false;
 
         function platformInfo(value) {
             return PLATFORMS.find(p => p.value === value) || { value: value, label: value, emoji: '\u{1F310}' };
@@ -259,11 +266,14 @@
             if (presets.length === 0) {
                 grid.innerHTML = '';
                 emptyState.style.display = 'block';
+                batchRunBtn.disabled = true;
                 return;
             }
             emptyState.style.display = 'none';
             grid.innerHTML = presets.map(cardHtml).join('');
             bindCardEvents();
+            // 没有正在运行的任务且队列也空闲时，允许一键启动
+            batchRunBtn.disabled = running || batchActive;
         }
 
         function findPreset(id) {
@@ -399,6 +409,58 @@
             await refreshStatus();
         }
 
+        async function batchRunPresets() {
+            if (running || batchActive) {
+                toast('已有任务在运行', true);
+                return;
+            }
+            const enabledCount = presets.filter(p => p.enabled).length;
+            if (enabledCount === 0) {
+                toast('没有已启用的预设', true);
+                return;
+            }
+            if (!confirm(`将按顺序执行 ${enabledCount} 个已启用预设，确认开始？`)) return;
+
+            batchRunBtn.disabled = true;
+            try {
+                // 先把页面上的修改保存到后端，保证用最新参数执行
+                const saved = await savePresets(true);
+                if (!saved) return;
+
+                const res = await fetch(PRESET_API + '/batch/run', { method: 'POST' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    toast(typeof data.detail === 'string' ? data.detail : '启动队列失败', true);
+                    return;
+                }
+                toast(data.message || '已启动批量任务');
+                if (Array.isArray(data.skipped) && data.skipped.length) {
+                    toast('已跳过: ' + data.skipped.join('; '), true);
+                }
+                await refreshStatus();
+            } catch (e) {
+                toast('启动队列失败: ' + e.message, true);
+            } finally {
+                await refreshStatus();
+            }
+        }
+
+        async function cancelBatchPresets() {
+            cancelBatchBtn.disabled = true;
+            try {
+                const res = await fetch(PRESET_API + '/batch/cancel', { method: 'POST' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    toast(typeof data.detail === 'string' ? data.detail : '取消失败', true);
+                } else {
+                    toast('已请求取消队列');
+                }
+            } catch (e) {
+                toast('取消失败: ' + e.message, true);
+            }
+            await refreshStatus();
+        }
+
         function addPreset() {
             const platform = document.getElementById('new-platform').value;
             const info = platformInfo(platform);
@@ -460,6 +522,30 @@
             } else {
                 statusMeta.textContent = '';
             }
+
+            // 队列进度展示
+            batchActive = !!st.batch_active;
+            if (batchActive && st.batch_total > 0) {
+                const currentIdx = (st.batch_index || 0) + 1;
+                const pending = (st.batch_pending_names || []);
+                const currentName = st.batch_current_name || ('#' + currentIdx);
+                const pendingText = pending.length
+                    ? '｜待执行: ' + pending.map(escapeHtml).join('、')
+                    : '';
+                batchMeta.style.display = '';
+                batchMeta.textContent = '队列进度: ' + currentIdx + '/' + st.batch_total
+                    + ' · 当前: ' + currentName + pendingText;
+                batchMeta.title = batchMeta.textContent;
+            } else {
+                batchMeta.style.display = 'none';
+                batchMeta.textContent = '';
+                batchMeta.title = '';
+            }
+
+            // 一键启动：空闲时可用，队列进行中/单任务运行中均不可用
+            batchRunBtn.disabled = running || batchActive || presets.length === 0;
+            // 取消队列：仅在批量激活时显示
+            cancelBatchBtn.style.display = batchActive ? '' : 'none';
 
             stopBtn.disabled = !running;
             if (!running) runningPresetId = null;
@@ -524,6 +610,8 @@
         document.getElementById('add-btn').addEventListener('click', addPreset);
         document.getElementById('save-btn').addEventListener('click', () => savePresets(false));
         document.getElementById('stop-btn').addEventListener('click', stopCrawler);
+        document.getElementById('batch-run-btn').addEventListener('click', batchRunPresets);
+        document.getElementById('cancel-batch-btn').addEventListener('click', cancelBatchPresets);
         document.getElementById('clear-log-btn').addEventListener('click', () => { logBody.innerHTML = ''; });
 
         loadPresets();
