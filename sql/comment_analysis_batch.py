@@ -271,7 +271,7 @@ class CommentAnalysisBatch:
         # 无购买意图:更新状态为1
         await self._update_comment_status(session, comment_id, 1, cfg)
         if keywords:
-            return False, f"未命中关键词: {', '.join(keywords)}"
+            return False, "未命中关键词"
         return False, "未配置 comment_key,默认无意图"
     
     async def _update_comment_status(self, session: AsyncSession, comment_id: int, status: int, cfg: dict):

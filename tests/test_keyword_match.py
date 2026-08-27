@@ -163,7 +163,7 @@ def test_process_comment_miss():
     )
 
     assert has_intent is False
-    assert "未命中关键词" in reason
+    assert reason == "未命中关键词"
     batch._update_comment_status.assert_awaited_once_with(session, 1, 1, cfg)
     batch._insert_push_record.assert_not_awaited()
 
