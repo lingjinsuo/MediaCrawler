@@ -39,10 +39,10 @@
         <div class="main">
             <div class="sidebar">
                 <div class="menu-group-title">导航菜单</div>
-                <a class="menu-item active" data-url="welcome" data-title="欢迎使用" data-desc="请从左侧菜单选择功能">
+                <a class="menu-item" data-url="welcome" data-title="欢迎使用" data-desc="请从左侧菜单选择功能">
                     <span class="icon">&#x1F3E0;</span> 首页
                 </a>
-                <a class="menu-item" data-url="/index.html" data-title="MediaCrawler 原始抓取" data-desc="多平台数据抓取控制台（原始 WebUI）">
+                <a class="menu-item active" data-url="/index.html" data-title="MediaCrawler 原始抓取" data-desc="多平台数据抓取控制台（原始 WebUI）">
                     <span class="icon">&#x1F577;&#xFE0F;</span> MediaCrawler原始抓取
                 </a>
                 <a class="menu-item" data-url="/comment-push/" data-title="评论推送管理" data-desc="评论推送任务管理与状态">
@@ -51,8 +51,8 @@
             </div>
             <div class="content">
                 <div class="content-header">
-                    <h2 id="content-title">欢迎使用</h2>
-                    <p id="content-desc">请从左侧菜单选择功能</p>
+                    <h2 id="content-title">MediaCrawler 原始抓取</h2>
+                    <p id="content-desc">多平台数据抓取控制台（原始 WebUI）</p>
                 </div>
                 <div id="content-body" style="flex:1; display:flex;">
                     <div class="welcome" id="welcome-page">
@@ -97,6 +97,11 @@
                     activate(item);
                 });
             });
+            // Activate the menu item marked with 'active' class on load (default page)
+            var defaultItem = document.querySelector(".sidebar a.menu-item.active");
+            if (defaultItem) {
+                activate(defaultItem);
+            }
         })();
     </script>
 </body>
