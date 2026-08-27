@@ -117,9 +117,13 @@ app.include_router(websocket_router, prefix="/api")
 app.include_router(comment_push_router, prefix="/api")
 
 
-@app.get("/")
+@app.get("/home")
 async def serve_frontend():
-    """Return frontend page"""
+    """Return homepage with sidebar layout (contains MediaCrawler original crawler & comment-push menu)"""
+    base_path = os.path.join(WEBUI_DIR, "base.html")
+    if os.path.exists(base_path):
+        return FileResponse(base_path)
+    # fallback to original index.html if base.html not found
     index_path = os.path.join(WEBUI_DIR, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
@@ -131,6 +135,34 @@ async def serve_frontend():
     }
 
 
+@app.get("/home/")
+async def serve_frontend_slash():
+    """Return homepage with sidebar layout (with trailing slash)"""
+    base_path = os.path.join(WEBUI_DIR, "base.html")
+    if os.path.exists(base_path):
+        return FileResponse(base_path)
+    index_path = os.path.join(WEBUI_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"message": "MediaCrawler WebUI API", "docs": "/docs"}
+
+
+@app.get("/")
+async def serve_root():
+    """Root path - redirect to /home (homepage with sidebar layout)"""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/home")
+
+
+@app.get("/index.html")
+async def serve_original_index():
+    """Return original MediaCrawler WebUI page (kept for direct access)"""
+    index_path = os.path.join(WEBUI_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"error": "index.html not found"}
+
+
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok"}
@@ -139,6 +171,16 @@ async def health_check():
 @app.get("/comment-push")
 async def serve_comment_push_page():
     """Return comment push management page"""
+    from fastapi.responses import FileResponse
+    push_page_path = os.path.join(WEBUI_DIR, "comment_push.html")
+    if os.path.exists(push_page_path):
+        return FileResponse(push_page_path)
+    return {"error": "Page not found"}
+
+
+@app.get("/comment-push/")
+async def serve_comment_push_page_slash():
+    """Return comment push management page (with trailing slash)"""
     from fastapi.responses import FileResponse
     push_page_path = os.path.join(WEBUI_DIR, "comment_push.html")
     if os.path.exists(push_page_path):

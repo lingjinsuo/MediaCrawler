@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaCrawler 控制台</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f6fa; color: #333; line-height: 1.6; }
+        .layout { display: flex; flex-direction: column; height: 100vh; }
+        .top-bar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 18px 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); flex-shrink: 0; }
+        .top-bar .system-title { font-size: 22px; font-weight: bold; letter-spacing: 1px; }
+        .top-bar .system-desc { font-size: 13px; margin-top: 4px; opacity: 0.9; }
+        .main { display: flex; flex: 1; min-height: 0; }
+        .sidebar { width: 220px; background: #ffffff; border-right: 1px solid #e0e0e0; padding: 20px 0; flex-shrink: 0; overflow-y: auto; }
+        .sidebar .menu-group-title { padding: 8px 20px; font-size: 12px; color: #999; text-transform: uppercase; letter-spacing: 1px; }
+        .sidebar a.menu-item { display: flex; align-items: center; padding: 12px 20px; color: #333; text-decoration: none; font-size: 15px; border-left: 3px solid transparent; transition: all 0.2s; cursor: pointer; }
+        .sidebar a.menu-item:hover { background: #f5f6fa; color: #667eea; }
+        .sidebar a.menu-item.active { background: linear-gradient(90deg, #f0f2ff 0%, #ffffff 100%); color: #667eea; border-left-color: #667eea; font-weight: 600; box-shadow: inset 2px 0 6px rgba(102, 126, 234, 0.15); }
+        .sidebar a.menu-item.active .icon { transform: scale(1.15); }
+        .sidebar a.menu-item .icon { transition: transform 0.2s; margin-right: 10px; font-size: 16px; }
+        .content { flex: 1; padding: 0; overflow: hidden; background: #f5f6fa; display: flex; flex-direction: column; }
+        .content-header { padding: 16px 24px; background: #ffffff; border-bottom: 1px solid #e0e0e0; flex-shrink: 0; }
+        .content-header h2 { font-size: 18px; color: #333; }
+        .content-header p { font-size: 13px; color: #888; margin-top: 4px; }
+        .content-iframe { flex: 1; border: none; width: 100%; background: #ffffff; }
+        .welcome { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; background: #ffffff; color: #888; }
+        .welcome .emoji { font-size: 64px; margin-bottom: 16px; }
+        .welcome h2 { font-size: 20px; color: #333; margin-bottom: 8px; }
+        .welcome p { font-size: 14px; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <div class="top-bar">
+            <div class="system-title">MediaCrawler 控制台</div>
+            <div class="system-desc">多平台社交媒体数据采集分析管理平台</div>
+        </div>
+        <div class="main">
+            <div class="sidebar">
+                <div class="menu-group-title">导航菜单</div>
+                <a class="menu-item active" data-url="welcome" data-title="欢迎使用" data-desc="请从左侧菜单选择功能">
+                    <span class="icon">&#x1F3E0;</span> 首页
+                </a>
+                <a class="menu-item" data-url="/index.html" data-title="MediaCrawler 原始抓取" data-desc="多平台数据抓取控制台（原始 WebUI）">
+                    <span class="icon">&#x1F577;&#xFE0F;</span> MediaCrawler原始抓取
+                </a>
+                <a class="menu-item" data-url="/comment-push/" data-title="评论推送管理" data-desc="评论推送任务管理与状态">
+                    <span class="icon">&#x1F4AC;</span> 评论推送
+                </a>
+            </div>
+            <div class="content">
+                <div class="content-header">
+                    <h2 id="content-title">欢迎使用</h2>
+                    <p id="content-desc">请从左侧菜单选择功能</p>
+                </div>
+                <div id="content-body" style="flex:1; display:flex;">
+                    <div class="welcome" id="welcome-page">
+                        <div class="emoji">&#x1F44B;</div>
+                        <h2>欢迎使用 MediaCrawler 控制台</h2>
+                        <p>请从左侧菜单选择功能模块</p>
+                    </div>
+                    <iframe id="content-iframe" class="content-iframe" style="display:none;" src=""></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        (function() {
+            var menuItems = document.querySelectorAll(".sidebar a.menu-item");
+            var iframe = document.getElementById("content-iframe");
+            var welcomePage = document.getElementById("welcome-page");
+            var contentTitle = document.getElementById("content-title");
+            var contentDesc = document.getElementById("content-desc");
+            function activate(item) {
+                menuItems.forEach(function(el) { el.classList.remove("active"); });
+                item.classList.add("active");
+                var url = item.getAttribute("data-url");
+                var title = item.getAttribute("data-title") || "";
+                var desc = item.getAttribute("data-desc") || "";
+                contentTitle.textContent = title;
+                contentDesc.textContent = desc;
+                if (url === "welcome") {
+                    iframe.style.display = "none";
+                    welcomePage.style.display = "flex";
+                } else {
+                    welcomePage.style.display = "none";
+                    iframe.style.display = "block";
+                    if (iframe.src.replace(window.location.origin, "") !== url) {
+                        iframe.src = url;
+                    }
+                }
+            }
+            menuItems.forEach(function(item) {
+                item.addEventListener("click", function(e) {
+                    e.preventDefault();
+                    activate(item);
+                });
+            });
+        })();
+    </script>
+</body>
+</html>
