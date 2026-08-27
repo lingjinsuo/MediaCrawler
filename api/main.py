@@ -126,16 +126,30 @@ app.include_router(setting_router, prefix="/api")
 app.include_router(crawl_preset_router, prefix="/api")
 
 
+def _build_html_response(file_path: str) -> FileResponse:
+    """构造一个禁用浏览器缓存的 HTML 响应。
+
+    解决“新增字段无痕模式可见、正常模式看不到”的缓存问题——
+    正常浏览器会对 HTML 做磁盘/内存缓存，无痕模式不带缓存。
+    显式下发 no-cache/no-store 头可以强制每次都重新拉取最新页面。
+    """
+    response = FileResponse(file_path)
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
 @app.get("/home")
 async def serve_frontend():
     """Return homepage with sidebar layout (contains MediaCrawler original crawler & comment-push menu)"""
     base_path = os.path.join(WEBUI_DIR, "base.html")
     if os.path.exists(base_path):
-        return FileResponse(base_path)
+        return _build_html_response(base_path)
     # fallback to original index.html if base.html not found
     index_path = os.path.join(WEBUI_DIR, "index.html")
     if os.path.exists(index_path):
-        return FileResponse(index_path)
+        return _build_html_response(index_path)
     return {
         "message": "MediaCrawler WebUI API",
         "version": "1.0.0",
@@ -149,10 +163,10 @@ async def serve_frontend_slash():
     """Return homepage with sidebar layout (with trailing slash)"""
     base_path = os.path.join(WEBUI_DIR, "base.html")
     if os.path.exists(base_path):
-        return FileResponse(base_path)
+        return _build_html_response(base_path)
     index_path = os.path.join(WEBUI_DIR, "index.html")
     if os.path.exists(index_path):
-        return FileResponse(index_path)
+        return _build_html_response(index_path)
     return {"message": "MediaCrawler WebUI API", "docs": "/docs"}
 
 
@@ -168,7 +182,7 @@ async def serve_original_index():
     """Return original MediaCrawler WebUI page (kept for direct access)"""
     index_path = os.path.join(WEBUI_DIR, "index.html")
     if os.path.exists(index_path):
-        return FileResponse(index_path)
+        return _build_html_response(index_path)
     return {"error": "index.html not found"}
 
 
@@ -183,7 +197,12 @@ async def serve_comment_push_page():
     from fastapi.responses import FileResponse
     push_page_path = os.path.join(WEBUI_DIR, "comment_push.html")
     if os.path.exists(push_page_path):
-        return FileResponse(push_page_path)
+        response = FileResponse(push_page_path)
+        # 禁止浏览器缓存,以便前端改动(列、表头、CSS 等)能立即生效
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     return {"error": "Page not found"}
 
 
@@ -193,7 +212,11 @@ async def serve_comment_push_page_slash():
     from fastapi.responses import FileResponse
     push_page_path = os.path.join(WEBUI_DIR, "comment_push.html")
     if os.path.exists(push_page_path):
-        return FileResponse(push_page_path)
+        response = FileResponse(push_page_path)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     return {"error": "Page not found"}
 
 
@@ -203,7 +226,11 @@ async def serve_setting_page():
     from fastapi.responses import FileResponse
     setting_page_path = os.path.join(WEBUI_DIR, "setting.html")
     if os.path.exists(setting_page_path):
-        return FileResponse(setting_page_path)
+        response = FileResponse(setting_page_path)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     return {"error": "Page not found"}
 
 
@@ -213,7 +240,11 @@ async def serve_setting_page_slash():
     from fastapi.responses import FileResponse
     setting_page_path = os.path.join(WEBUI_DIR, "setting.html")
     if os.path.exists(setting_page_path):
-        return FileResponse(setting_page_path)
+        response = FileResponse(setting_page_path)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     return {"error": "Page not found"}
 
 
@@ -223,7 +254,11 @@ async def serve_crawl_preset_page():
     from fastapi.responses import FileResponse
     page_path = os.path.join(WEBUI_DIR, "crawl_preset.html")
     if os.path.exists(page_path):
-        return FileResponse(page_path)
+        response = FileResponse(page_path)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     return {"error": "Page not found"}
 
 
@@ -233,7 +268,11 @@ async def serve_crawl_preset_page_slash():
     from fastapi.responses import FileResponse
     page_path = os.path.join(WEBUI_DIR, "crawl_preset.html")
     if os.path.exists(page_path):
-        return FileResponse(page_path)
+        response = FileResponse(page_path)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     return {"error": "Page not found"}
 
 
