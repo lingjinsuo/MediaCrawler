@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统设置 - MediaCrawler</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        .container { width: 100%; margin: 0; padding: 0; }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            background: #fff;
+            padding: 16px 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .header h1 { font-size: 22px; color: #1a1a2e; }
+        .header .actions { display: flex; gap: 8px; align-items: center; }
+        .header input {
+            padding: 8px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            width: 240px;
+        }
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            gap: 12px;
+        }
+        .toolbar .info { color: #666; font-size: 13px; }
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th {
+            background: #f8f9fa;
+            padding: 14px 12px;
+            text-align: left;
+            font-size: 13px;
+            color: #666;
+            font-weight: 600;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        td {
+            padding: 14px 12px;
+            border-top: 1px solid #f0f0f0;
+            font-size: 14px;
+            vertical-align: middle;
+        }
+        tr:hover { background: #f8f9fa; }
+        tr.row-new { background: #fffbe6; }
+        .editable {
+            border: 1px solid transparent;
+            background: transparent;
+            padding: 6px 8px;
+            border-radius: 4px;
+            width: 100%;
+            font-size: 14px;
+            font-family: inherit;
+            color: inherit;
+            transition: all 0.15s;
+        }
+        .editable:hover { border-color: #e0e0e0; background: #fff; }
+        .editable:focus {
+            outline: none;
+            border-color: #4f46e5;
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+        .editable.textarea { resize: vertical; min-height: 40px; }
+        .id-cell { color: #999; font-size: 13px; font-family: monospace; }
+        .time-cell { color: #999; font-size: 12px; white-space: nowrap; }
+        .btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            border: none;
+            font-family: inherit;
+        }
+        .btn-primary { background: #4f46e5; color: white; }
+        .btn-primary:hover { background: #4338ca; }
+        .btn-danger { background: #fee2e2; color: #dc2626; }
+        .btn-danger:hover { background: #fecaca; }
+        .save-indicator {
+            display: inline-block;
+            margin-left: 8px;
+            font-size: 12px;
+            color: #10b981;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .save-indicator.show { opacity: 1; }
+        .save-indicator.error { color: #dc2626; }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        .empty-state .emoji { font-size: 48px; margin-bottom: 12px; }
+        .empty-state h2 { font-size: 16px; margin-bottom: 8px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>系统设置 (mc_setting)</h1>
+            <div class="actions">
+                <input id="search-input" type="text" placeholder="搜索 key 或 content..." />
+                <button class="btn btn-primary" id="add-btn">新增关键词</button>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <div class="info">共 <span id="total-count">0</span> 条</div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">ID</th>
+                        <th style="width: 30%;">Key</th>
+                        <th>Content</th>
+                        <th style="width: 160px;">更新时间</th>
+                        <th style="width: 100px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="setting-tbody"></tbody>
+            </table>
+            <div id="empty-state" class="empty-state" style="display: none;">
+                <div class="emoji">📋</div>
+                <h2>暂无数据</h2>
+                <p>点击右上角"新增关键词"开始添加</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/setting';
+        const tbody = document.getElementById('setting-tbody');
+        const emptyState = document.getElementById('empty-state');
+        const totalCount = document.getElementById('total-count');
+        const searchInput = document.getElementById('search-input');
+        const addBtn = document.getElementById('add-btn');
+        let allItems = [];
+
+        function formatTime(s) {
+            if (!s) return '-';
+            try {
+                const d = new Date(s);
+                if (isNaN(d.getTime())) return s;
+                const pad = n => String(n).padStart(2, '0');
+                return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+            } catch (e) { return s; }
+        }
+
+        function escapeHtml(s) {
+            if (s === null || s === undefined) return '';
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function render() {
+            const search = (searchInput.value || '').trim();
+            const items = !search ? allItems : allItems.filter(it =>
+                (it.key || '').includes(search) || (it.content || '').includes(search)
+            );
+            totalCount.textContent = items.length;
+            if (items.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+            emptyState.style.display = 'none';
+            const rows = items.map(it => {
+                const keyVal = escapeHtml(it.key || '');
+                const contentVal = escapeHtml(it.content || '');
+                const isNew = it._isNew;
+                const rowClass = isNew ? ' class="row-new"' : '';
+                const dataNew = isNew ? ' data-new="1"' : '';
+                return '<tr' + rowClass + dataNew + ' data-id="' + it.id + '">'
+                    + '<td class="id-cell">' + (isNew ? 'NEW' : it.id) + '</td>'
+                    + '<td><input class="editable editable-key" value="' + keyVal + '" placeholder="key" /></td>'
+                    + '<td><textarea class="editable editable-content textarea" rows="1" placeholder="content">' + contentVal + '</textarea></td>'
+                    + '<td class="time-cell">' + formatTime(it.update_time || it.create_time) + '</td>'
+                    + '<td>'
+                    + '<button class="btn btn-primary save-btn" style="' + (isNew ? '' : 'display:none;') + '">保存</button> '
+                    + '<button class="btn btn-danger delete-btn">删除</button>'
+                    + '<span class="save-indicator"></span>'
+                    + '</td></tr>';
+            }).join('');
+            tbody.innerHTML = rows;
+            bindEvents();
+        }
+
+        function bindEvents() {
+            tbody.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', async function() {
+                    const tr = this.closest('tr');
+                    const id = tr.getAttribute('data-id');
+                    const isNew = tr.getAttribute('data-new') === '1';
+                    if (!confirm(isNew ? '放弃新增?' : '确认删除这条设置?')) return;
+                    if (!isNew) {
+                        try {
+                            const res = await fetch(API_BASE + '/delete/' + id, { method: 'DELETE' });
+                            if (!res.ok) {
+                                const err = await res.json();
+                                alert('删除失败: ' + (err.detail || res.status));
+                                return;
+                            }
+                        } catch (e) {
+                            alert('删除失败: ' + e.message);
+                            return;
+                        }
+                    }
+                    allItems = allItems.filter(it => String(it.id) !== String(id));
+                    render();
+                });
+            });
+            tbody.querySelectorAll('.save-btn').forEach(btn => {
+                btn.addEventListener('click', async function() {
+                    await saveRow(this.closest('tr'));
+                });
+            });
+            tbody.querySelectorAll('tr:not([data-new])').forEach(tr => {
+                const id = tr.getAttribute('data-id');
+                const keyInput = tr.querySelector('.editable-key');
+                const contentInput = tr.querySelector('.editable-content');
+                const indicator = tr.querySelector('.save-indicator');
+                const originalKey = keyInput.value;
+                const originalContent = contentInput.value;
+                const onBlur = async function() {
+                    const newKey = keyInput.value;
+                    const newContent = contentInput.value;
+                    if (newKey === originalKey && newContent === originalContent) return;
+                    indicator.className = 'save-indicator show';
+                    indicator.textContent = '保存中...';
+                    try {
+                        const res = await fetch(API_BASE + '/update/' + id, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ key: newKey, content: newContent }),
+                        });
+                        if (!res.ok) {
+                            const err = await res.json();
+                            indicator.textContent = '✗ ' + (err.detail || '失败');
+                            indicator.className = 'save-indicator show error';
+                            setTimeout(() => { indicator.className = 'save-indicator'; }, 3000);
+                            return;
+                        }
+                        const item = allItems.find(it => String(it.id) === String(id));
+                        if (item) {
+                            item.key = newKey;
+                            item.content = newContent;
+                            item.update_time = new Date().toISOString();
+                        }
+                        indicator.textContent = '✓ 已保存';
+                        indicator.className = 'save-indicator show';
+                        setTimeout(() => { indicator.className = 'save-indicator'; }, 2000);
+                    } catch (e) {
+                        indicator.textContent = '✗ ' + e.message;
+                        indicator.className = 'save-indicator show error';
+                        setTimeout(() => { indicator.className = 'save-indicator'; }, 3000);
+                    }
+                };
+                keyInput.addEventListener('blur', onBlur);
+                contentInput.addEventListener('blur', onBlur);
+            });
+        }
+
+        async function saveRow(tr) {
+            const keyInput = tr.querySelector('.editable-key');
+            const contentInput = tr.querySelector('.editable-content');
+            const indicator = tr.querySelector('.save-indicator');
+            const saveBtn = tr.querySelector('.save-btn');
+            const newKey = (keyInput.value || '').trim();
+            const newContent = contentInput.value || '';
+            if (!newKey) { alert('key 不能为空'); return; }
+            indicator.className = 'save-indicator show';
+            indicator.textContent = '保存中...';
+            saveBtn.disabled = true;
+            try {
+                const res = await fetch(API_BASE + '/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: newKey, content: newContent }),
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    indicator.textContent = '� ' + (err.detail || '失败');
+                    indicator.className = 'save-indicator show error';
+                    saveBtn.disabled = false;
+                    setTimeout(() => { indicator.className = 'save-indicator'; }, 3000);
+                    return;
+                }
+                await loadAll();
+            } catch (e) {
+                indicator.textContent = '✗ ' + e.message;
+                indicator.className = 'save-indicator show error';
+                saveBtn.disabled = false;
+            }
+        }
+
+        async function loadAll() {
+            try {
+                const res = await fetch(API_BASE + '/list');
+                const data = await res.json();
+                allItems = data.items || [];
+                render();
+            } catch (e) {
+                console.error('Failed to load settings:', e);
+            }
+        }
+
+        addBtn.addEventListener('click', function() {
+            const newId = 'new-' + Date.now();
+            allItems.unshift({
+                id: newId, key: '', content: '',
+                create_time: null, update_time: null, _isNew: true,
+            });
+            render();
+            const tr = tbody.querySelector('tr[data-new="1"]');
+            if (tr) tr.querySelector('.editable-key').focus();
+        });
+
+        searchInput.addEventListener('input', function() { render(); });
+        loadAll();
+    </script>
+</body>
+</html>
