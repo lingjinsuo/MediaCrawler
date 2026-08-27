@@ -69,7 +69,9 @@ fi
 
 # Step 5: start service in background
 echo -e "${YELLOW}[4/4] Starting service...${NC}"
-nohup uv run python -m "${SCRIPT_MODULE}" > "$LOG_FILE" 2>&1 &
+# PYTHONUNBUFFERED=1 ensures print() / FastAPI log output is flushed immediately
+# to logs/api.log instead of being buffered by the uvicorn event loop.
+PYTHONUNBUFFERED=1 nohup uv run python -m "${SCRIPT_MODULE}" > "$LOG_FILE" 2>&1 &
 NEW_PID=$!
 echo -e "${GREEN}Started PID: $NEW_PID${NC}"
 
