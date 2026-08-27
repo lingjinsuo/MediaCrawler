@@ -29,6 +29,7 @@ class CommentPushItem(BaseModel):
     comment_content: Optional[str]
     comment_nickname: Optional[str]
     comment_time: Optional[int]
+    hit_keyword: Optional[str]
     push_status: int
     process_content: Optional[str]
     process_time: Optional[datetime]
@@ -117,6 +118,7 @@ async def get_comment_push_list(
         list_sql = text(f"""
             SELECT id, platform, note_title, note_url, note_nickname,
                    comment_content, comment_nickname, comment_time,
+                   hit_keyword,
                    push_status, process_content, process_time,
                    create_time, analysis_time
             FROM comment_push
@@ -126,10 +128,10 @@ async def get_comment_push_list(
         """)
         params["limit"] = page_size
         params["offset"] = offset
-        
+
         result = await session.execute(list_sql, params)
         rows = result.fetchall()
-        
+
         items = []
         for row in rows:
             platform_code = row[1] or ""
@@ -143,13 +145,14 @@ async def get_comment_push_list(
                 comment_content=row[5],
                 comment_nickname=row[6],
                 comment_time=row[7],
-                push_status=row[8] or 0,
-                process_content=row[9],
-                process_time=row[10],
-                create_time=row[11],
-                analysis_time=row[12]
+                hit_keyword=row[8],
+                push_status=row[9] or 0,
+                process_content=row[10],
+                process_time=row[11],
+                create_time=row[12],
+                analysis_time=row[13]
             ))
-        
+
         return CommentPushListResponse(total=total, items=items)
 
 
@@ -215,6 +218,61 @@ async def get_comment_push_stats():
             }
         
         return {"stats": stats}
+
+
+@router.get("/by-keyword")
+async def get_comment_push_by_keyword(
+    platform: Optional[str] = None,
+    limit: int = 100,
+):
+    """按命中关键词分组统计(支持可选平台过滤)
+
+    Args:
+        platform: 平台筛选,可选 (xhs/dy/ks)
+        limit: 返回前 N 条,默认 100,最大 500
+
+    Returns:
+        items: [{ keyword, platform, platform_name, hit_count }, ...]
+    """
+    # 限制 limit 范围,避免过大响应
+    limit = max(1, min(int(limit or 100), 500))
+
+    where_clauses = ["hit_keyword IS NOT NULL"]
+    params: dict = {}
+    if platform:
+        where_clauses.append("platform = :platform")
+        params["platform"] = platform
+    where_sql = " AND ".join(where_clauses)
+
+    async with get_session() as session:
+        sql = text(f"""
+            SELECT
+                hit_keyword,
+                platform,
+                COUNT(*) AS hit_count
+            FROM comment_push
+            WHERE {where_sql}
+            GROUP BY hit_keyword, platform
+            ORDER BY hit_count DESC, hit_keyword ASC
+            LIMIT :limit
+        """)
+        params["limit"] = limit
+
+        result = await session.execute(sql, params)
+        rows = result.fetchall()
+
+        items = []
+        for row in rows:
+            keyword = row[0]
+            platform_code = row[1] or ""
+            items.append({
+                "keyword": keyword,
+                "platform": platform_code,
+                "platform_name": PLATFORM_NAMES.get(platform_code, platform_code),
+                "hit_count": int(row[2] or 0),
+            })
+
+        return {"total": len(items), "items": items}
 
 
 @router.post("/batch-update")

@@ -263,9 +263,9 @@ class CommentAnalysisBatch:
         hit_keyword = _match_keywords(content, keywords)
 
         if hit_keyword:
-            # 有购买意图:更新状态为2,并写入推送表
+            # 有购买意图:更新状态为2,并写入推送表(同时记录命中的关键词)
             await self._update_comment_status(session, comment_id, 2, cfg)
-            await self._insert_push_record(session, comment, cfg)
+            await self._insert_push_record(session, comment, cfg, hit_keyword)
             return True, f"命中关键词: {hit_keyword}"
 
         # 无购买意图:更新状态为1
@@ -284,31 +284,42 @@ class CommentAnalysisBatch:
         """)
         await session.execute(query, {"status": status, "id": comment_id})
     
-    async def _insert_push_record(self, session: AsyncSession, comment: dict, cfg: dict):
-        """写入推送表"""
+    async def _insert_push_record(self, session: AsyncSession, comment: dict, cfg: dict, hit_keyword: Optional[str] = None):
+        """写入推送表
+
+        Args:
+            hit_keyword: 命中的关键词(由 mc_setting.comment_key 触发本条推送);
+                         可选参数,缺省/为空时存 NULL。
+        """
         comment_time_sec = normalize_timestamp_to_seconds(comment.get("comment_time", 0))
         three_days_ago = int(time.time()) - 3 * 24 * 60 * 60
-        
+
         # 评论时间已超过3天，标记为已处理
         push_status = 1 if comment_time_sec and comment_time_sec < three_days_ago else 0
-        
+
+        # 关键词做一次 trim,空字符串视作 None
+        if hit_keyword is not None:
+            hit_keyword = str(hit_keyword).strip() or None
+
         query = text("""
             INSERT INTO comment_push (
                 platform, note_title, note_url, note_nickname,
                 comment_id, comment_content, comment_nickname, comment_time,
-                original_comment_id, push_status, create_time, analysis_time
+                original_comment_id, hit_keyword,
+                push_status, create_time, analysis_time
             ) VALUES (
                 :platform, :note_title, :note_url, :note_nickname,
                 :comment_id, :comment_content, :comment_nickname, :comment_time,
-                :original_comment_id, :push_status, UNIX_TIMESTAMP(NOW()) * 1000, NOW()
+                :original_comment_id, :hit_keyword,
+                :push_status, UNIX_TIMESTAMP(NOW()) * 1000, NOW()
             )
         """)
-        
+
         # 截取字段避免超过数据库字段长度
         note_title = comment.get("note_title")
         if note_title and len(note_title) > 500:
             note_title = note_title[:500]
-        
+
         await session.execute(query, {
             "platform": cfg["platform"],
             "note_title": note_title,
@@ -319,6 +330,7 @@ class CommentAnalysisBatch:
             "comment_nickname": comment.get("comment_nickname"),
             "comment_time": comment_time_sec,
             "original_comment_id": comment.get("cmt_id"),
+            "hit_keyword": hit_keyword,
             "push_status": push_status,
         })
 
