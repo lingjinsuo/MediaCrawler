@@ -32,7 +32,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from .routers import crawler_router, data_router, websocket_router, comment_push_router, setting_router
+from .routers import (
+    crawler_router,
+    data_router,
+    websocket_router,
+    comment_push_router,
+    setting_router,
+    crawl_preset_router,
+)
 
 # 调度器任务
 scheduler_task = None
@@ -116,6 +123,7 @@ app.include_router(data_router, prefix="/api")
 app.include_router(websocket_router, prefix="/api")
 app.include_router(comment_push_router, prefix="/api")
 app.include_router(setting_router, prefix="/api")
+app.include_router(crawl_preset_router, prefix="/api")
 
 
 @app.get("/home")
@@ -206,6 +214,26 @@ async def serve_setting_page_slash():
     setting_page_path = os.path.join(WEBUI_DIR, "setting.html")
     if os.path.exists(setting_page_path):
         return FileResponse(setting_page_path)
+    return {"error": "Page not found"}
+
+
+@app.get("/crawl-preset")
+async def serve_crawl_preset_page():
+    """Return crawl preset (one-click start) page"""
+    from fastapi.responses import FileResponse
+    page_path = os.path.join(WEBUI_DIR, "crawl_preset.html")
+    if os.path.exists(page_path):
+        return FileResponse(page_path)
+    return {"error": "Page not found"}
+
+
+@app.get("/crawl-preset/")
+async def serve_crawl_preset_page_slash():
+    """Return crawl preset (one-click start) page (with trailing slash)"""
+    from fastapi.responses import FileResponse
+    page_path = os.path.join(WEBUI_DIR, "crawl_preset.html")
+    if os.path.exists(page_path):
+        return FileResponse(page_path)
     return {"error": "Page not found"}
 
 

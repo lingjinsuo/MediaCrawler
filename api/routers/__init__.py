@@ -21,5 +21,13 @@ from .data import router as data_router
 from .websocket import router as websocket_router
 from .comment_push import router as comment_push_router
 from .setting import router as setting_router
+from .crawl_preset import router as crawl_preset_router
 
-__all__ = ["crawler_router", "data_router", "websocket_router", "comment_push_router", "setting_router"]
+__all__ = [
+    "crawler_router",
+    "data_router",
+    "websocket_router",
+    "comment_push_router",
+    "setting_router",
+    "crawl_preset_router",
+]

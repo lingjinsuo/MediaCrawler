@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一键抓取 - MediaCrawler</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f7fa; min-height: 100vh; padding: 20px; color: #333; }
+        .container { width: 100%; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fff; padding: 16px 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .header h1 { font-size: 22px; color: #1a1a2e; }
+        .header .actions { display: flex; gap: 8px; align-items: center; }
+        .btn { padding: 8px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; border: none; font-family: inherit; transition: all .15s; }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
+        .btn-primary { background: #4f46e5; color: #fff; }
+        .btn-primary:hover:not(:disabled) { background: #4338ca; }
+        .btn-success { background: #10b981; color: #fff; font-weight: 600; }
+        .btn-success:hover:not(:disabled) { background: #059669; }
+        .btn-danger { background: #fee2e2; color: #dc2626; }
+        .btn-danger:hover:not(:disabled) { background: #fecaca; }
+        .btn-ghost { background: #f1f3f5; color: #555; }
+        .btn-ghost:hover:not(:disabled) { background: #e5e7eb; }
+        .status-bar { display: flex; align-items: center; gap: 12px; background: #fff; padding: 12px 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; flex-wrap: wrap; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #9ca3af; flex-shrink: 0; }
+        .dot.running { background: #10b981; animation: pulse 1.4s infinite; }
+        .dot.stopping { background: #f59e0b; }
+        .dot.error { background: #dc2626; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+        .status-text { font-size: 14px; font-weight: 600; }
+        .status-meta { font-size: 12px; color: #888; }
+        .status-bar .spacer { flex: 1; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; margin-bottom: 20px; }
+        .card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; border: 2px solid transparent; transition: border-color .2s; }
+        .card.is-running { border-color: #10b981; }
+        .card.disabled { opacity: .62; }
+        .card-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; background: #f8f9fa; border-bottom: 1px solid #eee; }
+        .card-head .emoji { font-size: 20px; }
+        .card-head input.name { flex: 1; border: 1px solid transparent; background: transparent; font-size: 15px; font-weight: 600; font-family: inherit; color: #1a1a2e; padding: 4px 6px; border-radius: 4px; min-width: 0; }
+        .card-head input.name:hover { border-color: #e0e0e0; background: #fff; }
+        .card-head input.name:focus { outline: none; border-color: #4f46e5; background: #fff; }
+        .card-body { padding: 12px 14px; }
+        .row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .row > .field { flex: 1; min-width: 0; }
+        .field label { display: block; font-size: 11px; color: #888; margin-bottom: 4px; font-weight: 500; }
+        .field input, .field select, .field textarea { width: 100%; padding: 7px 9px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: inherit; color: #333; background: #fff; }
+        .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,.1); }
+        .field textarea { resize: vertical; min-height: 34px; }
+        .checks { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+        .checks label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #555; cursor: pointer; }
+        .checks input[type=checkbox] { width: 14px; height: 14px; cursor: pointer; accent-color: #4f46e5; }
+        .card-foot { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid #f0f0f0; background: #fcfcfd; }
+        .card-foot .spacer { flex: 1; }
+        .badge { font-size: 11px; padding: 2px 7px; border-radius: 10px; background: #eef2ff; color: #4f46e5; font-weight: 600; }
+        .badge.off { background: #f3f4f6; color: #9ca3af; }
+        .hint { font-size: 11px; color: #10b981; min-height: 15px; }
+        .hint.error { color: #dc2626; }
+        .log-panel { background: #1e1e2e; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        .log-head { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #2a2a3e; color: #cdd6f4; font-size: 13px; font-weight: 600; }
+        .log-head .spacer { flex: 1; }
+        .log-body { height: 260px; overflow-y: auto; padding: 10px 16px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.7; }
+        .log-line { color: #cdd6f4; white-space: pre-wrap; word-break: break-all; }
+        .log-line .ts { color: #6c7086; margin-right: 8px; }
+        .log-line.error { color: #f38ba8; }
+        .log-line.warning { color: #f9e2af; }
+        .log-line.success { color: #a6e3a1; }
+        .log-line.debug { color: #7f849c; }
+        .empty-state { text-align: center; padding: 50px 20px; color: #999; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .empty-state .emoji { font-size: 44px; margin-bottom: 10px; }
+        .empty-state h2 { font-size: 16px; margin-bottom: 6px; color: #666; }
+        .toast { position: fixed; top: 20px; right: 20px; padding: 12px 18px; border-radius: 8px; color: #fff; font-size: 13px; z-index: 999; opacity: 0; transform: translateY(-8px); transition: all .25s; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,.18); }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.ok { background: #10b981; }
+        .toast.err { background: #dc2626; }
+    </style>
+
+
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>一键抓取预设</h1>
+            <div class="actions">
+                <select id="new-platform" style="padding:8px 10px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;font-family:inherit;">
+                    <option value="dy">抖音</option>
+                    <option value="xhs">小红书</option>
+                    <option value="ks">快手</option>
+                    <option value="bili">B 站</option>
+                    <option value="wb">微博</option>
+                    <option value="tieba">百度贴吧</option>
+                    <option value="zhihu">知乎</option>
+                </select>
+                <button class="btn btn-primary" id="add-btn">+ 新增预设</button>
+                <button class="btn btn-ghost" id="save-btn">保存全部</button>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <span class="dot" id="status-dot"></span>
+            <span class="status-text" id="status-text">空闲</span>
+            <span class="status-meta" id="status-meta"></span>
+            <span class="spacer"></span>
+            <span class="status-meta">共 <b id="total-count">0</b> 个预设</span>
+            <button class="btn btn-danger" id="stop-btn" disabled>停止当前任务</button>
+        </div>
+
+        <div class="grid" id="preset-grid"></div>
+
+        <div id="empty-state" class="empty-state" style="display:none;">
+            <div class="emoji">&#x1F680;</div>
+            <h2>还没有预设</h2>
+            <p>在右上角选择平台，点击「+ 新增预设」创建一套固定参数，之后只需点「启动」</p>
+        </div>
+
+        <div class="log-panel">
+            <div class="log-head">
+                <span>运行日志</span>
+                <span class="spacer"></span>
+                <span class="status-meta" id="ws-state">连接中...</span>
+                <button class="btn btn-ghost" id="clear-log-btn" style="padding:4px 10px;font-size:12px;">清屏</button>
+            </div>
+            <div class="log-body" id="log-body"></div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const PRESET_API = '/api/crawl-preset';
+        const CRAWLER_API = '/api/crawler';
+
+        const PLATFORMS = [
+            { value: 'dy', label: '抖音', emoji: '\u{1F3B5}' },
+            { value: 'xhs', label: '小红书', emoji: '\u{1F4D5}' },
+            { value: 'ks', label: '快手', emoji: '\u{1F3AC}' },
+            { value: 'bili', label: 'B 站', emoji: '\u{1F4FA}' },
+            { value: 'wb', label: '微博', emoji: '\u{1F4AC}' },
+            { value: 'tieba', label: '百度贴吧', emoji: '\u{1F5E3}' },
+            { value: 'zhihu', label: '知乎', emoji: '\u{2753}' }
+        ];
+        const LOGIN_TYPES = [
+            { value: 'qrcode', label: '扫码登录' },
+            { value: 'cookie', label: 'Cookie 登录' }
+        ];
+        const CRAWLER_TYPES = [
+            { value: 'search', label: '搜索' },
+            { value: 'detail', label: '详情' },
+            { value: 'creator', label: '创作者' }
+        ];
+        const SAVE_OPTIONS = [
+            { value: 'db', label: 'MySQL' },
+            { value: 'sqlite', label: 'SQLite' },
+            { value: 'jsonl', label: 'JSONL' },
+            { value: 'json', label: 'JSON' },
+            { value: 'csv', label: 'CSV' },
+            { value: 'excel', label: 'Excel' },
+            { value: 'mongodb', label: 'MongoDB' }
+        ];
+
+        const grid = document.getElementById('preset-grid');
+        const emptyState = document.getElementById('empty-state');
+        const totalCount = document.getElementById('total-count');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const statusMeta = document.getElementById('status-meta');
+        const stopBtn = document.getElementById('stop-btn');
+        const logBody = document.getElementById('log-body');
+        const wsState = document.getElementById('ws-state');
+        const toastEl = document.getElementById('toast');
+
+        let presets = [];
+        let running = false;
+        let runningPresetId = null;
+
+        function platformInfo(value) {
+            return PLATFORMS.find(p => p.value === value) || { value: value, label: value, emoji: '\u{1F310}' };
+        }
+
+        function escapeHtml(s) {
+            if (s === null || s === undefined) return '';
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function toast(msg, isError) {
+            toastEl.textContent = msg;
+            toastEl.className = 'toast show ' + (isError ? 'err' : 'ok');
+            setTimeout(() => { toastEl.className = 'toast'; }, 2600);
+        }
+
+        function options(list, selected) {
+            return list.map(o => '<option value="' + o.value + '"' +
+                (o.value === selected ? ' selected' : '') + '>' + escapeHtml(o.label) + '</option>').join('');
+        }
+
+        function newId() {
+            return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        }
+
+        function cardHtml(p) {
+            const info = platformInfo(p.platform);
+            const isRunning = running && runningPresetId === p.id;
+            const cls = 'card' + (isRunning ? ' is-running' : '') + (p.enabled ? '' : ' disabled');
+            const targetLabel = p.crawler_type === 'detail' ? '帖子/视频 ID（逗号分隔）'
+                : (p.crawler_type === 'creator' ? '创作者 ID（逗号分隔）' : '关键词（逗号分隔）');
+            const targetField = p.crawler_type === 'detail' ? 'specified_ids'
+                : (p.crawler_type === 'creator' ? 'creator_ids' : 'keywords');
+            const targetValue = escapeHtml(p[targetField] || '');
+
+            return '<div class="' + cls + '" data-id="' + p.id + '">'
+                + '<div class="card-head">'
+                +   '<span class="emoji">' + info.emoji + '</span>'
+                +   '<input class="name" data-field="name" value="' + escapeHtml(p.name || '') + '" placeholder="预设名称" />'
+                +   '<span class="badge' + (p.enabled ? '' : ' off') + '">' + info.label + '</span>'
+                + '</div>'
+                + '<div class="card-body">'
+                +   '<div class="row">'
+                +     '<div class="field"><label>平台</label><select data-field="platform">' + options(PLATFORMS, p.platform) + '</select></div>'
+                +     '<div class="field"><label>抓取模式</label><select data-field="crawler_type">' + options(CRAWLER_TYPES, p.crawler_type) + '</select></div>'
+                +   '</div>'
+                +   '<div class="row">'
+                +     '<div class="field"><label>' + targetLabel + '</label>'
+                +       '<textarea data-field="' + targetField + '" rows="1" placeholder="' + targetLabel + '">' + targetValue + '</textarea></div>'
+                +   '</div>'
+                +   '<div class="row">'
+                +     '<div class="field"><label>登录方式</label><select data-field="login_type">' + options(LOGIN_TYPES, p.login_type) + '</select></div>'
+                +     '<div class="field"><label>存储方式</label><select data-field="save_option">' + options(SAVE_OPTIONS, p.save_option) + '</select></div>'
+                +   '</div>'
+                +   '<div class="row">'
+                +     '<div class="field"><label>起始页</label><input type="number" min="1" data-field="start_page" value="' + (p.start_page || 1) + '" /></div>'
+                +     '<div class="field"><label>最大条数</label><input type="number" min="1" max="10000" data-field="max_notes_count" value="' + (p.max_notes_count == null ? '' : p.max_notes_count) + '" placeholder="默认" /></div>'
+                +     '<div class="field"><label>每条评论数</label><input type="number" min="1" max="10000" data-field="max_comments_count" value="' + (p.max_comments_count == null ? '' : p.max_comments_count) + '" placeholder="默认" /></div>'
+                +   '</div>'
+                +   (p.login_type === 'cookie'
+                        ? '<div class="row"><div class="field"><label>Cookies</label>'
+                          + '<textarea data-field="cookies" rows="2" placeholder="粘贴 cookie 字符串">' + escapeHtml(p.cookies || '') + '</textarea></div></div>'
+                        : '')
+                +   '<div class="checks">'
+                +     '<label><input type="checkbox" data-field="enable_comments"' + (p.enable_comments ? ' checked' : '') + ' /> 抓一级评论</label>'
+                +     '<label><input type="checkbox" data-field="enable_sub_comments"' + (p.enable_sub_comments ? ' checked' : '') + ' /> 抓二级评论</label>'
+                +     '<label><input type="checkbox" data-field="headless"' + (p.headless ? ' checked' : '') + ' /> 无头模式</label>'
+                +     '<label><input type="checkbox" data-field="enabled"' + (p.enabled ? ' checked' : '') + ' /> 启用</label>'
+                +   '</div>'
+                + '</div>'
+                + '<div class="card-foot">'
+                +   '<button class="btn btn-success run-btn"' + ((!p.enabled || running) ? ' disabled' : '') + '>'
+                +     (isRunning ? '运行中...' : '\u25B6 启动') + '</button>'
+                +   '<button class="btn btn-ghost dup-btn">复制</button>'
+                +   '<button class="btn btn-danger del-btn">删除</button>'
+                +   '<span class="spacer"></span>'
+                +   '<span class="hint"></span>'
+                + '</div>'
+                + '</div>';
+        }
+
+        function render() {
+            totalCount.textContent = presets.length;
+            if (presets.length === 0) {
+                grid.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+            emptyState.style.display = 'none';
+            grid.innerHTML = presets.map(cardHtml).join('');
+            bindCardEvents();
+        }
+
+        function findPreset(id) {
+            return presets.find(p => String(p.id) === String(id));
+        }
+
+        function bindCardEvents() {
+            grid.querySelectorAll('.card').forEach(card => {
+                const id = card.getAttribute('data-id');
+                const preset = findPreset(id);
+                if (!preset) return;
+
+                // 字段变更 -> 更新内存模型
+                card.querySelectorAll('[data-field]').forEach(el => {
+                    const field = el.getAttribute('data-field');
+                    const evt = el.tagName === 'SELECT' || el.type === 'checkbox' ? 'change' : 'input';
+                    el.addEventListener(evt, function() {
+                        if (el.type === 'checkbox') {
+                            preset[field] = el.checked;
+                        } else if (field === 'start_page') {
+                            const n = parseInt(el.value, 10);
+                            preset[field] = isNaN(n) || n < 1 ? 1 : n;
+                        } else if (field === 'max_notes_count' || field === 'max_comments_count') {
+                            const n = parseInt(el.value, 10);
+                            preset[field] = isNaN(n) || n < 1 ? null : n;
+                        } else {
+                            preset[field] = el.value;
+                        }
+                        // 这些字段会改变卡片结构，需要重绘
+                        if (field === 'platform' || field === 'crawler_type' ||
+                            field === 'login_type' || field === 'enabled') {
+                            render();
+                        }
+                    });
+                });
+
+                card.querySelector('.run-btn').addEventListener('click', () => runPreset(preset, card));
+                card.querySelector('.dup-btn').addEventListener('click', () => duplicatePreset(preset));
+                card.querySelector('.del-btn').addEventListener('click', () => deletePreset(preset));
+            });
+        }
+
+        function showHint(card, msg, isError) {
+            const hint = card.querySelector('.hint');
+            if (!hint) return;
+            hint.textContent = msg;
+            hint.className = 'hint' + (isError ? ' error' : '');
+            if (msg) setTimeout(() => { hint.textContent = ''; hint.className = 'hint'; }, 4000);
+        }
+
+        async function loadPresets() {
+            try {
+                const res = await fetch(PRESET_API + '/list');
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    toast(err.detail || '加载预设失败', true);
+                    return;
+                }
+                const data = await res.json();
+                presets = data.items || [];
+                render();
+            } catch (e) {
+                toast('加载预设失败: ' + e.message, true);
+            }
+        }
+
+        async function savePresets(silent) {
+            try {
+                const res = await fetch(PRESET_API + '/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: presets })
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    toast(typeof err.detail === 'string' ? err.detail : '保存失败', true);
+                    return false;
+                }
+                if (!silent) toast('已保存 ' + presets.length + ' 个预设');
+                return true;
+            } catch (e) {
+                toast('保存失败: ' + e.message, true);
+                return false;
+            }
+        }
+
+        async function runPreset(preset, card) {
+            if (running) {
+                toast('已有任务在运行，请先停止', true);
+                return;
+            }
+            // 启动前先落库，保证服务端拿到的是页面上最新的参数
+            const saved = await savePresets(true);
+            if (!saved) return;
+
+            showHint(card, '启动中...');
+            const runBtn = card.querySelector('.run-btn');
+            runBtn.disabled = true;
+
+            try {
+                const res = await fetch(PRESET_API + '/run/' + encodeURIComponent(preset.id), { method: 'POST' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    showHint(card, typeof data.detail === 'string' ? data.detail : '启动失败', true);
+                    toast(typeof data.detail === 'string' ? data.detail : '启动失败', true);
+                    runBtn.disabled = false;
+                    return;
+                }
+                runningPresetId = preset.id;
+                showHint(card, '已启动');
+                toast(data.message || '已启动');
+                await refreshStatus();
+            } catch (e) {
+                showHint(card, e.message, true);
+                runBtn.disabled = false;
+            }
+        }
+
+        async function stopCrawler() {
+            stopBtn.disabled = true;
+            try {
+                const res = await fetch(CRAWLER_API + '/stop', { method: 'POST' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    toast(typeof data.detail === 'string' ? data.detail : '停止失败', true);
+                } else {
+                    toast('已停止');
+                }
+            } catch (e) {
+                toast('停止失败: ' + e.message, true);
+            }
+            runningPresetId = null;
+            await refreshStatus();
+        }
+
+        function addPreset() {
+            const platform = document.getElementById('new-platform').value;
+            const info = platformInfo(platform);
+            presets.push({
+                id: newId(),
+                name: info.label + ' 抓取',
+                platform: platform,
+                login_type: 'qrcode',
+                crawler_type: 'search',
+                keywords: '',
+                specified_ids: '',
+                creator_ids: '',
+                start_page: 1,
+                enable_comments: true,
+                enable_sub_comments: false,
+                save_option: 'db',
+                cookies: '',
+                headless: false,
+                max_notes_count: null,
+                max_comments_count: null,
+                enabled: true,
+                sort_order: presets.length
+            });
+            render();
+        }
+
+        function duplicatePreset(preset) {
+            const copy = Object.assign({}, preset, {
+                id: newId(),
+                name: (preset.name || '预设') + ' 副本',
+                sort_order: presets.length
+            });
+            presets.push(copy);
+            render();
+        }
+
+        async function deletePreset(preset) {
+            if (!confirm('确认删除预设「' + (preset.name || preset.platform) + '」？')) return;
+            presets = presets.filter(p => p.id !== preset.id);
+            render();
+            await savePresets(true);
+            toast('已删除');
+        }
+
+        // ---------- 运行状态 ----------
+        const STATUS_LABEL = { idle: '空闲', running: '运行中', stopping: '停止中', error: '异常' };
+
+        function applyStatus(st) {
+            const wasRunning = running;
+            running = st.status === 'running' || st.status === 'stopping';
+
+            statusDot.className = 'dot ' + (st.status === 'idle' ? '' : st.status);
+            statusText.textContent = STATUS_LABEL[st.status] || st.status;
+
+            if (running && st.platform) {
+                statusMeta.textContent = '平台: ' + platformInfo(st.platform).label
+                    + ' / 模式: ' + (st.crawler_type || '-')
+                    + (st.started_at ? ' / 开始: ' + new Date(st.started_at).toLocaleTimeString() : '');
+            } else {
+                statusMeta.textContent = '';
+            }
+
+            stopBtn.disabled = !running;
+            if (!running) runningPresetId = null;
+
+            // 运行状态变化时刷新卡片按钮的可用性
+            if (wasRunning !== running) render();
+        }
+
+        async function refreshStatus() {
+            try {
+                const res = await fetch(CRAWLER_API + '/status');
+                if (!res.ok) return;
+                applyStatus(await res.json());
+            } catch (e) { /* 忽略轮询异常 */ }
+        }
+
+        // ---------- 日志 ----------
+        function appendLog(entry) {
+            const div = document.createElement('div');
+            div.className = 'log-line ' + (entry.level || 'info');
+            const ts = document.createElement('span');
+            ts.className = 'ts';
+            ts.textContent = entry.timestamp || '';
+            div.appendChild(ts);
+            div.appendChild(document.createTextNode(entry.message || ''));
+            logBody.appendChild(div);
+            // 超过 800 行时裁剪，避免 DOM 膨胀
+            while (logBody.childElementCount > 800) logBody.removeChild(logBody.firstChild);
+            logBody.scrollTop = logBody.scrollHeight;
+        }
+
+        let ws = null;
+        let wsRetry = null;
+
+        function connectWs() {
+            const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            try {
+                ws = new WebSocket(proto + '//' + window.location.host + '/api/ws/logs');
+            } catch (e) {
+                wsState.textContent = '日志连接失败';
+                return;
+            }
+
+            ws.onopen = () => { wsState.textContent = '日志已连接'; };
+            ws.onmessage = (ev) => {
+                if (ev.data === 'ping') { ws.send('pong'); return; }
+                if (ev.data === 'pong') return;
+                try {
+                    const entry = JSON.parse(ev.data);
+                    if (entry && entry.message !== undefined) appendLog(entry);
+                } catch (e) { /* 非 JSON 心跳，忽略 */ }
+            };
+            ws.onclose = () => {
+                wsState.textContent = '日志已断开，重连中...';
+                if (wsRetry) clearTimeout(wsRetry);
+                wsRetry = setTimeout(connectWs, 3000);
+            };
+            ws.onerror = () => { wsState.textContent = '日志连接异常'; };
+        }
+
+        // ---------- 初始化 ----------
+        document.getElementById('add-btn').addEventListener('click', addPreset);
+        document.getElementById('save-btn').addEventListener('click', () => savePresets(false));
+        document.getElementById('stop-btn').addEventListener('click', stopCrawler);
+        document.getElementById('clear-log-btn').addEventListener('click', () => { logBody.innerHTML = ''; });
+
+        loadPresets();
+        refreshStatus();
+        connectWs();
+        setInterval(refreshStatus, 3000);
+    </script>
+
+
+
+    </script>
+
+</body>
+
+</html>
