@@ -11,6 +11,7 @@
 
 import asyncio
 import argparse
+import re
 import time
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple
@@ -23,7 +24,6 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.db_session import get_session, get_async_engine
-from tools.llm_client import analyze_comment_purchase_intent
 import config
 
 
@@ -66,6 +66,43 @@ def normalize_timestamp_to_seconds(ts: Optional[int]) -> int:
     return ts
 
 
+def _split_keywords(raw: str) -> List[str]:
+    """
+    把 mc_setting.comment_key 的 content 字段拆成关键词列表。
+    支持半角逗号、全角逗号、顿号、换行、分号作为分隔符；
+    自动 trim、去前后引号、去空项、去重(大小写不敏感)。
+    """
+    if not raw:
+        return []
+    parts = re.split(r"[,，、\n;；]+", str(raw))
+    keywords: List[str] = []
+    seen = set()
+    for p in parts:
+        kw = p.strip().strip('"').strip("'").strip()
+        if not kw:
+            continue
+        key = kw.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        keywords.append(kw)
+    return keywords
+
+
+def _match_keywords(content: Optional[str], keywords: List[str]) -> Optional[str]:
+    """
+    判断评论内容是否命中任一关键词(子串包含,大小写不敏感)。
+    命中则返回第一个命中的关键词(原文大小写),否则返回 None。
+    """
+    if not content or not keywords:
+        return None
+    content_lower = str(content).lower()
+    for kw in keywords:
+        if kw and kw.lower() in content_lower:
+            return kw
+    return None
+
+
 class CommentAnalysisBatch:
     """评论分析跑批"""
     
@@ -100,33 +137,42 @@ class CommentAnalysisBatch:
         """处理单个平台"""
         cfg = PLATFORM_CONFIG[platform]
         print(f"\n[{cfg['name']}] 开始处理...")
-        
+
         async with get_session() as session:
+            # 0. 一次性加载关键词(避免每条评论都查一次 mc_setting)
+            keywords = await self._get_comment_keywords(session)
+            if keywords:
+                print(f"[{cfg['name']}] 已加载 comment_key 关键词 {len(keywords)} 个: {keywords}")
+            else:
+                print(f"[{cfg['name']}] [WARNING] mc_setting.comment_key 未配置,所有评论将标记为无意图")
+
             # 1. 查询未分析的评论
             comments = await self._get_unanalyzed_comments(session, cfg)
-            
+
             if not comments:
                 print(f"[{cfg['name']}] 没有未分析的评论")
                 return
-            
+
             print(f"[{cfg['name']}] 找到 {len(comments)} 条未分析评论")
-            
+
             # 2. 逐条分析
             for idx, comment in enumerate(comments):
                 try:
-                    has_intent, reason = await self._process_comment(session, comment, cfg)
-                    content_preview = comment["comment_content"][:30].replace("\n", " ") if comment["comment_content"] else ""
+                    has_intent, reason = await self._process_comment_with_keywords(
+                        session, comment, cfg, keywords
+                    )
+                    content_preview = (comment.get("comment_content") or "")[:30].replace("\n", " ")
                     if has_intent:
-                        print(f"[{cfg['name']}] [{idx+1}/{len(comments)}] 分析 -> 有购买意图。评论内容：{content_preview}")
+                        print(f"[{cfg['name']}] [{idx+1}/{len(comments)}] 分析 -> 有购买意图。评论内容:{content_preview}")
                     else:
-                        print(f"[{cfg['name']}] [{idx+1}/{len(comments)}] 分析 -> {reason}。评论内容：{content_preview}")
+                        print(f"[{cfg['name']}] [{idx+1}/{len(comments)}] 分析 -> {reason}。评论内容:{content_preview}")
                 except Exception as e:
-                    content_preview = comment["comment_content"][:30].replace("\n", " ") if comment["comment_content"] else ""
-                    print(f"[{cfg['name']}] [{idx+1}/{len(comments)}] 分析 -> 失败: {e}。评论内容：{content_preview}")
-                
+                    content_preview = (comment.get("comment_content") or "")[:30].replace("\n", " ")
+                    print(f"[{cfg['name']}] [{idx+1}/{len(comments)}] 分析 -> 失败: {e}。评论内容:{content_preview}")
+
                 # 避免请求过快
                 await asyncio.sleep(0.5)
-            
+
             await session.commit()
     
     async def _get_unanalyzed_comments(self, session: AsyncSession, cfg: dict) -> List[Dict]:
@@ -170,31 +216,63 @@ class CommentAnalysisBatch:
         
         return comments
     
+    async def _get_comment_keywords(self, session: AsyncSession) -> List[str]:
+        """
+        从 mc_setting 表读取 key='comment_key' 的 content 字段,
+        拆分为关键词数组。若记录不存在、content 为空或读取失败,返回空列表
+        (等价于"未配置 → 不启用关键词过滤")。
+        """
+        try:
+            sql = text("SELECT content FROM mc_setting WHERE `key` = :k LIMIT 1")
+            result = await session.execute(sql, {"k": "comment_key"})
+            row = result.fetchone()
+            if not row or row[0] is None:
+                return []
+            return _split_keywords(row[0])
+        except Exception as e:
+            print(f"[mc_setting] 读取 comment_key 失败: {e}")
+            return []
+
     async def _process_comment(self, session: AsyncSession, comment: dict, cfg: dict) -> Tuple[bool, str]:
-        """处理单条评论"""
+        """
+        兼容旧签名的入口:内部会重新读取一次 mc_setting.comment_key。
+        推荐使用 _process_comment_with_keywords 以避免每条评论都查一次库。
+        """
+        keywords = await self._get_comment_keywords(session)
+        return await self._process_comment_with_keywords(session, comment, cfg, keywords)
+
+    async def _process_comment_with_keywords(
+        self,
+        session: AsyncSession,
+        comment: dict,
+        cfg: dict,
+        keywords: List[str],
+    ) -> Tuple[bool, str]:
+        """处理单条评论(改用 mc_setting.comment_key 关键词命中,不再调用 LLM)"""
         comment_id = comment["cmt_id"]
-        content = comment["comment_content"]
+        content = comment.get("comment_content") or ""
         comment_time_sec = normalize_timestamp_to_seconds(comment.get("comment_time", 0))
-        
-        # 检查评论时间是否已超过3天，超过3天的不入库
+
+        # ① 3 天硬性过期:评论 > 3 天 → 不分析、不入库,直接标记 analysis_status=1
         three_days_ago = int(time.time()) - 3 * 24 * 60 * 60
         if comment_time_sec and comment_time_sec < three_days_ago:
-            # 评论已超过3天，标记为已处理但不入库
             await self._update_comment_status(session, comment_id, 1, cfg)
             return False, "评论已超过3天，跳过入库"
-        
-        # 调用LLM分析
-        has_intent, reason = await analyze_comment_purchase_intent(content)
-        
-        if has_intent:
-            # 有购买意图：更新状态为2，并写入推送表
+
+        # ② 关键词命中判定(替代原 LLM 调用)
+        hit_keyword = _match_keywords(content, keywords)
+
+        if hit_keyword:
+            # 有购买意图:更新状态为2,并写入推送表
             await self._update_comment_status(session, comment_id, 2, cfg)
             await self._insert_push_record(session, comment, cfg)
-        else:
-            # 无购买意图：更新状态为1
-            await self._update_comment_status(session, comment_id, 1, cfg)
-        
-        return has_intent, reason
+            return True, f"命中关键词: {hit_keyword}"
+
+        # 无购买意图:更新状态为1
+        await self._update_comment_status(session, comment_id, 1, cfg)
+        if keywords:
+            return False, f"未命中关键词: {', '.join(keywords)}"
+        return False, "未配置 comment_key,默认无意图"
     
     async def _update_comment_status(self, session: AsyncSession, comment_id: int, status: int, cfg: dict):
         """更新评论状态"""
