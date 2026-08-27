@@ -39,16 +39,16 @@
         <div class="main">
             <div class="sidebar">
                 <div class="menu-group-title">导航菜单</div>
-                <a class="menu-item" data-url="welcome" data-title="欢迎使用" data-desc="请从左侧菜单选择功能">
+                <a class="menu-item" data-url="welcome" data-title="欢迎使用" data-desc="请从左侧菜单选择功能" data-key="home" href="#/home">
                     <span class="icon">&#x1F3E0;</span> 首页
                 </a>
-                <a class="menu-item active" data-url="/index.html" data-title="MediaCrawler 原始抓取" data-desc="多平台数据抓取控制台（原始 WebUI）">
+                <a class="menu-item active" data-url="/index.html" data-title="MediaCrawler 原始抓取" data-desc="多平台数据抓取控制台（原始 WebUI）" data-key="crawler" href="#/crawler">
                     <span class="icon">&#x1F577;&#xFE0F;</span> MediaCrawler原始抓取
                 </a>
-                <a class="menu-item" data-url="/comment-push/" data-title="评论推送管理" data-desc="评论推送任务管理与状态">
+                <a class="menu-item" data-url="/comment-push/" data-title="评论推送管理" data-desc="评论推送任务管理与状态" data-key="comment-push" href="#/comment-push">
                     <span class="icon">&#x1F4AC;</span> 评论推送
                 </a>
-                <a class="menu-item" data-url="/setting/" data-title="系统设置" data-desc="mc_setting 表的 key/value 管理">
+                <a class="menu-item" data-url="/setting/" data-title="系统设置" data-desc="mc_setting 表的 key/value 管理" data-key="setting" href="#/setting">
                     <span class="icon">&#x2699;&#xFE0F;</span> 设置
                 </a>
             </div>
@@ -75,7 +75,25 @@
             var welcomePage = document.getElementById("welcome-page");
             var contentTitle = document.getElementById("content-title");
             var contentDesc = document.getElementById("content-desc");
-            function activate(item) {
+
+            // Build key -> menu item lookup (for restoring on refresh / direct URL)
+            var itemByKey = {};
+            menuItems.forEach(function(el) {
+                var key = el.getAttribute("data-key");
+                if (key) {
+                    itemByKey[key] = el;
+                }
+            });
+
+            // Normalize hash like "#/comment-push" or "#/comment-push/" -> "comment-push"
+            function keyFromHash() {
+                var raw = window.location.hash || "";
+                var m = raw.match(/^#\/?([^/?#]+)/);
+                return m ? m[1] : null;
+            }
+
+            function activate(item, opts) {
+                opts = opts || {};
                 menuItems.forEach(function(el) { el.classList.remove("active"); });
                 item.classList.add("active");
                 var url = item.getAttribute("data-url");
@@ -93,18 +111,56 @@
                         iframe.src = url;
                     }
                 }
+
+                // Sync URL hash so browser refresh / bookmark keeps current page.
+                // Only pushState when hash actually changes to avoid polluting history.
+                if (!opts.skipHashSync) {
+                    var key = item.getAttribute("data-key");
+                    if (key) {
+                        var newHash = "#/" + key;
+                        if (window.location.hash !== newHash) {
+                            if (window.history && window.history.pushState) {
+                                window.history.pushState({ key: key }, "", newHash);
+                            } else {
+                                window.location.hash = newHash;
+                            }
+                        }
+                    }
+                }
             }
+
             menuItems.forEach(function(item) {
                 item.addEventListener("click", function(e) {
                     e.preventDefault();
                     activate(item);
                 });
             });
-            // Activate the menu item marked with 'active' class on load (default page)
-            var defaultItem = document.querySelector(".sidebar a.menu-item.active");
-            if (defaultItem) {
-                activate(defaultItem);
+
+            // Restore from URL hash on load (or fall back to default active item)
+            var initialKey = keyFromHash();
+            var initialItem = initialKey && itemByKey[initialKey];
+            if (!initialItem) {
+                initialItem = document.querySelector(".sidebar a.menu-item.active");
             }
+            if (initialItem) {
+                activate(initialItem, { skipHashSync: true });
+            }
+
+            // React to back/forward navigation (browser arrows or manual hash edits)
+            window.addEventListener("popstate", function() {
+                var k = keyFromHash();
+                var it = k && itemByKey[k];
+                if (it) {
+                    activate(it, { skipHashSync: true });
+                }
+            });
+            window.addEventListener("hashchange", function() {
+                var k = keyFromHash();
+                var it = k && itemByKey[k];
+                if (it) {
+                    activate(it, { skipHashSync: true });
+                }
+            });
         })();
     </script>
 </body>
