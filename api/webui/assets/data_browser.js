@@ -159,14 +159,6 @@
     const imgs = p.image_urls && p.image_urls.length ? p.image_urls : (p.cover_url ? [p.cover_url] : []);
     return `
       <div class="post-card" data-post-id="${escapeAttr(p.post_id)}">
-        ${imgs.length ? `
-          <div class="post-imgs-top">
-            ${imgs.filter(Boolean).slice(0, 6).map(u => `
-              <a href="${escapeAttr(p.post_url || u)}" target="_blank" rel="noopener" class="post-img-thumb">
-                <img src="${escapeAttr(u)}" loading="lazy" onerror="this.parentElement.style.display='none';" />
-              </a>`).join("")}
-          </div>
-        ` : ""}
         <div class="post-head">
           <div class="meta-row">
             <span class="platform-tag ${tagCls}">${escapeHtml(platformLabel)}</span>
@@ -175,9 +167,22 @@
             <span class="meta-tag">${escapeHtml(p.create_time || "时间未知")}</span>
             ${keyword}
           </div>
-          <div class="title">${escapeHtml(p.title || (p.content || "").slice(0, 80) || "（无标题）")}</div>
-          <div class="content-text">${escapeHtml(p.content || "")}</div>
-          ${tagsHtml ? `<div class="tags">${tagsHtml}</div>` : ""}
+          ${imgs.length ? `
+            <div class="post-imgs-inline">
+              <a href="${escapeAttr(p.post_url || imgs[0])}" target="_blank" rel="noopener" class="post-img-thumb">
+                <img src="${escapeAttr(imgs[0])}" loading="lazy" onerror="this.parentElement.style.display='none';" />
+              </a>
+              <div class="post-text">
+                <div class="title">${escapeHtml(p.title || (p.content || "").slice(0, 80) || "（无标题）")}</div>
+                <div class="content-text">${escapeHtml(p.content || "")}</div>
+                ${tagsHtml ? `<div class="tags">${tagsHtml}</div>` : ""}
+              </div>
+            </div>
+          ` : `
+            <div class="title">${escapeHtml(p.title || (p.content || "").slice(0, 80) || "（无标题）")}</div>
+            <div class="content-text">${escapeHtml(p.content || "")}</div>
+            ${tagsHtml ? `<div class="tags">${tagsHtml}</div>` : ""}
+          `}
           <div class="footer-row">
             <div class="stats-line">
               <span title="作者">👤 ${escapeHtml(p.author || "匿名")}</span>
