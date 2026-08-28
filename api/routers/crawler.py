@@ -27,6 +27,14 @@ router = APIRouter(prefix="/crawler", tags=["crawler"])
 @router.post("/start")
 async def start_crawler(request: CrawlerStartRequest):
     """Start crawler task"""
+    # Validate required parameters to avoid starting a crawler with empty inputs
+    if request.crawler_type.value == "search" and not request.keywords.strip():
+        raise HTTPException(status_code=400, detail="请输入关键词，并【回车】")
+    if request.crawler_type.value == "detail" and not request.specified_ids.strip():
+        raise HTTPException(status_code=400, detail="请输入帖子/视频 ID")
+    if request.crawler_type.value == "creator" and not request.creator_ids.strip():
+        raise HTTPException(status_code=400, detail="请输入创作者 ID")
+
     success = await crawler_manager.start(request)
     if not success:
         # Handle concurrent/duplicate requests: if process is already running, return 400 instead of 500
