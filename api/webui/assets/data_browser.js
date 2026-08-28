@@ -162,7 +162,7 @@
         ${imgs.length ? `
           <div class="post-imgs-top">
             ${imgs.filter(Boolean).slice(0, 6).map(u => `
-              <a href="${escapeAttr(u)}" target="_blank" rel="noopener" class="post-img-thumb">
+              <a href="${escapeAttr(p.post_url || u)}" target="_blank" rel="noopener" class="post-img-thumb">
                 <img src="${escapeAttr(u)}" loading="lazy" onerror="this.parentElement.style.display='none';" />
               </a>`).join("")}
           </div>
