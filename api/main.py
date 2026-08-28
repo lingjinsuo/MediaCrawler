@@ -39,6 +39,7 @@ from .routers import (
     comment_push_router,
     setting_router,
     crawl_preset_router,
+    data_browser_router,
 )
 
 # 调度器任务
@@ -124,6 +125,7 @@ app.include_router(websocket_router, prefix="/api")
 app.include_router(comment_push_router, prefix="/api")
 app.include_router(setting_router, prefix="/api")
 app.include_router(crawl_preset_router, prefix="/api")
+app.include_router(data_browser_router, prefix="/api")
 
 
 def _build_html_response(file_path: str) -> FileResponse:
@@ -267,6 +269,34 @@ async def serve_crawl_preset_page_slash():
     """Return crawl preset (one-click start) page (with trailing slash)"""
     from fastapi.responses import FileResponse
     page_path = os.path.join(WEBUI_DIR, "crawl_preset.html")
+    if os.path.exists(page_path):
+        response = FileResponse(page_path)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+    return {"error": "Page not found"}
+
+
+@app.get("/data-browser")
+async def serve_data_browser_page():
+    """Return data browser page (帖子/评论统一浏览)"""
+    from fastapi.responses import FileResponse
+    page_path = os.path.join(WEBUI_DIR, "data_browser.html")
+    if os.path.exists(page_path):
+        response = FileResponse(page_path)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+    return {"error": "Page not found"}
+
+
+@app.get("/data-browser/")
+async def serve_data_browser_page_slash():
+    """Return data browser page (with trailing slash)"""
+    from fastapi.responses import FileResponse
+    page_path = os.path.join(WEBUI_DIR, "data_browser.html")
     if os.path.exists(page_path):
         response = FileResponse(page_path)
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"

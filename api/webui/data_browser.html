@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据浏览 - MediaCrawler</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; }
+        body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f7fa; color: #1a1a2e; display: flex; flex-direction: column; min-height: 100vh; }
+        .topbar { background: #fff; padding: 12px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; position: sticky; top: 0; z-index: 10; }
+        .topbar h1 { font-size: 17px; color: #1a1a2e; font-weight: 700; }
+        .topbar .subtitle { font-size: 12px; color: #888; margin-top: 2px; }
+        .topbar .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .btn { padding: 7px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; font-family: inherit; transition: all .15s; white-space: nowrap; }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
+        .btn-primary { background: #4f46e5; color: #fff; }
+        .btn-primary:hover:not(:disabled) { background: #4338ca; }
+        .btn-ghost { background: #f1f3f5; color: #555; }
+        .btn-ghost:hover:not(:disabled) { background: #e5e7eb; }
+        .filters { background: #fff; padding: 10px 20px; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; position: sticky; top: 60px; z-index: 9; }
+        .filters input, .filters select { padding: 7px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: inherit; background: #fff; color: #333; }
+        .filters input#keyword-input { flex: 1; min-width: 220px; }
+        .filters input:focus, .filters select:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,.1); }
+        .filters .label { font-size: 12px; color: #888; font-weight: 500; }
+        .main { display: flex; flex: 1; min-height: 0; }
+        .sidebar-pane { width: 220px; flex-shrink: 0; background: #fff; border-right: 1px solid #e5e7eb; padding: 14px; overflow-y: auto; }
+        .sidebar-pane .group-title { font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; margin: 0 4px 8px; }
+        .stat-card { background: #f9fafb; padding: 6px 10px; border-radius: 6px; cursor: pointer; transition: all .15s; border: 2px solid transparent; margin-bottom: 6px; line-height: 1.35; }
+        .stat-card:hover { background: #f3f4f6; }
+        .stat-card.active { border-color: #4f46e5; background: #f5f3ff; }
+        .stat-card.empty { opacity: 0.4; cursor: default; }
+        .stat-card.empty:hover { background: #f9fafb; }
+        .stat-card .stat-line1 { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: #1a1a2e; }
+        .stat-card .stat-line1 .emoji { font-size: 14px; }
+        .stat-card .stat-line2 { display: flex; gap: 8px; font-size: 11px; color: #555; margin-top: 2px; align-items: baseline; }
+        .stat-card .stat-line2 b { color: #1a1a2e; font-weight: 700; }
+        .stat-card .stat-line2 .storage-tag { margin-left: auto; font-size: 10px; color: #9ca3af; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+        .stat-card .stat-empty-text { color: #9ca3af; font-style: italic; }
+        .content-pane { flex: 1; padding: 16px 20px 24px; overflow-y: auto; min-width: 0; }
+        #post-list { display: flex; flex-direction: column; gap: 8px; }
+        .post-card { background: #fff; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden; }
+        .post-imgs-top { display: flex; gap: 4px; padding: 6px 10px 0 10px; background: #fafafa; flex-wrap: wrap; }
+        .post-imgs-top .post-img-thumb { display: block; width: 64px; height: 64px; border-radius: 5px; overflow: hidden; border: 1px solid #e5e7eb; background: #f9fafb; flex-shrink: 0; }
+        .post-imgs-top .post-img-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .post-head { padding: 8px 12px; }
+        .post-head .meta-row { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; flex-wrap: wrap; }
+        .post-head .title { font-size: 14px; font-weight: 600; color: #1a1a2e; line-height: 1.35; margin-bottom: 3px; word-break: break-word; }
+        .post-head .content-text { font-size: 12px; color: #4b5563; line-height: 1.5; word-break: break-word; max-height: 4.5em; overflow: hidden; }
+        .post-head .tags { margin-top: 4px; }
+        .post-head .hash-tag { display: inline-block; background: #f3f4f6; color: #374151; padding: 1px 6px; border-radius: 8px; font-size: 10px; margin-right: 3px; }
+        .post-head .kw-tag { display: inline-block; background: #fff7ed; color: #c2410c; padding: 1px 6px; border-radius: 8px; font-size: 10px; margin-left: 4px; }
+        .post-head .footer-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; flex-wrap: wrap; gap: 6px; padding-top: 6px; border-top: 1px dashed #eee; }
+        .post-head .stats-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: #6b7280; }
+        .post-head .stats-line .sep { color: #d1d5db; }
+        .post-head .stats-line .ext-link { color: #4f46e5; text-decoration: none; }
+        .post-head .toggle-comments-btn { font-size: 11px !important; padding: 3px 8px !important; }
+        .comments-area { background: #fafafa; padding: 6px 12px 8px; border-top: 1px solid #f0f0f0; }
+        .comment-item { padding: 10px 0; border-bottom: 1px dashed #eee; font-size: 13px; }
+        .comment-item:last-child { border-bottom: none; }
+        .comment-item .head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+        .comment-item .author { font-weight: 600; color: #4f46e5; }
+        .comment-item .time { color: #9ca3af; font-size: 11px; margin-left: 6px; }
+        .comment-item .meta-right { font-size: 11px; color: #9ca3af; }
+        .comment-item .body { margin-top: 4px; color: #374151; word-break: break-word; line-height: 1.6; }
+        .comment-item .pics { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+        .comment-item .pics a img { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; display: block; }
+        .comments-empty { text-align: center; color: #9ca3af; padding: 18px; font-size: 13px; }
+        .comments-more { text-align: center; padding: 10px; color: #9ca3af; font-size: 12px; }
+        .pagination-bar { display: flex; justify-content: center; gap: 6px; padding: 18px 0 6px; align-items: center; flex-wrap: wrap; }
+        .pagination-bar .info { font-size: 12px; color: #6b7280; margin-right: auto; }
+        .empty-hint { background: #fff; border-radius: 10px; padding: 50px 20px; text-align: center; color: #9ca3af; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .empty-hint .emoji { font-size: 40px; margin-bottom: 10px; }
+        .empty-hint .text { font-size: 14px; color: #6b7280; }
+        .loading-hint { text-align: center; padding: 60px; color: #888; }
+        .platform-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .platform-tag.xhs { background: #fee2e2; color: #dc2626; }
+        .platform-tag.dy { background: #dbeafe; color: #2563eb; }
+        .platform-tag.ks { background: #dcfce7; color: #16a34a; }
+        .platform-tag.bili { background: #fce7f3; color: #db2777; }
+        .platform-tag.wb { background: #fef3c7; color: #d97706; }
+        .platform-tag.tieba { background: #e0e7ff; color: #4f46e5; }
+        .platform-tag.zhihu { background: #cffafe; color: #0891b2; }
+        .meta-tag { font-size: 11px; color: #9ca3af; }
+        .meta-tag.kw { display: inline-block; background: #fff7ed; color: #c2410c; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 4px; }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div>
+            <h1>📊 数据浏览</h1>
+            <div class="subtitle">按平台浏览抓取到的帖子与评论 · 支持 MySQL / SQLite / JSON / JSONL / CSV</div>
+        </div>
+        <div class="actions">
+            <button class="btn btn-ghost" id="refresh-btn">🔄 刷新</button>
+            <button class="btn btn-primary" id="expand-all-btn">展开全部评论</button>
+            <button class="btn btn-ghost" id="collapse-all-btn">收起全部评论</button>
+        </div>
+    </div>
+    <div class="filters">
+        <span class="label">平台</span>
+        <select id="platform-select"></select>
+        <span class="label">存储</span>
+        <select id="storage-select">
+            <option value="">自动选择</option>
+            <option value="mysql">MySQL</option>
+            <option value="sqlite">SQLite</option>
+            <option value="json">JSON</option>
+            <option value="jsonl">JSONL</option>
+            <option value="csv">CSV</option>
+        </select>
+        <span class="label">每页</span>
+        <select id="page-size-select">
+            <option>20</option>
+            <option selected>50</option>
+            <option>100</option>
+            <option>200</option>
+        </select>
+        <input id="keyword-input" placeholder="🔍 搜索标题、内容、作者、关键词..." />
+        <button class="btn btn-primary" id="search-btn">查询</button>
+    </div>
+    <div class="main">
+        <div class="sidebar-pane">
+            <div class="group-title">平台数据</div>
+            <div id="stats-bar"></div>
+        </div>
+        <div class="content-pane">
+            <div id="post-list"></div>
+            <div id="pagination-bar" class="pagination-bar"></div>
+        </div>
+    </div>
+<div id="toast" style="position:fixed;top:20px;right:20px;padding:12px 18px;border-radius:8px;color:#fff;font-size:13px;z-index:9999;opacity:0;transform:translateY(-8px);transition:all .25s;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.18);"></div>
+<script src="/assets/data_browser.js"></script>
+</body>
+</html>
